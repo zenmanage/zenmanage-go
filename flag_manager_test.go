@@ -85,7 +85,7 @@ func TestFlagManagerReportsUsageWithDefaultValue(t *testing.T) {
 
 	select {
 	case h := <-usageHeaders:
-		if got := h.Get("X-Default-Value"); got != `{"missing":true}` {
+		if got := h.Get("X-ZEN-DEFAULT-VALUE"); got != `{"missing":true}` {
 			t.Fatalf("expected default-value header, got %q", got)
 		}
 	case <-time.After(2 * time.Second):
@@ -130,7 +130,7 @@ func TestFlagManagerReportsUsageWithDefaultsCollectionValue(t *testing.T) {
 
 	select {
 	case h := <-usageHeaders:
-		if got := h.Get("X-Default-Value"); got != `{"missing":"from-collection"}` {
+		if got := h.Get("X-ZEN-DEFAULT-VALUE"); got != `{"missing":"from-collection"}` {
 			t.Fatalf("expected default-value header, got %q", got)
 		}
 	case <-time.After(2 * time.Second):
@@ -174,7 +174,7 @@ func TestFlagManagerReportsUsageWithoutDefaultValueWhenFlagFound(t *testing.T) {
 
 	select {
 	case h := <-usageHeaders:
-		if got := h.Get("X-Default-Value"); got != "" {
+		if got := h.Get("X-ZEN-DEFAULT-VALUE"); got != "" {
 			t.Fatalf("expected no default-value header, got %q", got)
 		}
 	case <-time.After(2 * time.Second):

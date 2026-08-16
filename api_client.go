@@ -82,7 +82,7 @@ func (c *APIClient) FetchRules(ctx context.Context) (RulesResponse, error) {
 
 // ReportUsage emits usage telemetry for a flag key. defaultValue, when
 // non-nil, is the fallback value the caller used because the flag couldn't
-// be resolved from rules; it's sent as the X-Default-Value header so it can
+// be resolved from rules; it's sent as the X-ZEN-DEFAULT-VALUE header so it can
 // be persisted and shown on the flag detail page.
 func (c *APIClient) ReportUsage(ctx context.Context, key string, contextData *Context, defaultValue any) error {
 	if !c.enableUsage {
@@ -94,13 +94,13 @@ func (c *APIClient) ReportUsage(ctx context.Context, key string, contextData *Co
 	if contextData != nil && !contextData.IsEmpty() {
 		payload, err := contextData.JSON()
 		if err == nil {
-			headers["X-ZENMANAGE-CONTEXT"] = string(payload)
+			headers["X-ZEN-CONTEXT"] = string(payload)
 		}
 	}
 	if defaultValue != nil {
 		payload, err := json.Marshal(map[string]any{key: defaultValue})
 		if err == nil {
-			headers["X-Default-Value"] = string(payload)
+			headers["X-ZEN-DEFAULT-VALUE"] = string(payload)
 		}
 	}
 
@@ -137,7 +137,7 @@ func (c *APIClient) doRequestWithRetry(ctx context.Context, method, url string, 
 			req.Header.Set("Content-Type", "application/json")
 		}
 		if withAuth {
-			req.Header.Set("X-API-Key", c.envToken)
+			req.Header.Set("X-ZEN-API-KEY", c.envToken)
 			req.Header.Set("X-ZEN-CLIENT-AGENT", fmt.Sprintf("%s/%s", c.clientAgent, c.sdkVersion))
 		}
 		for k, v := range headers {

@@ -76,7 +76,7 @@ func TestAPIClientReportUsageSendsDefaultValueHeader(t *testing.T) {
 
 	select {
 	case h := <-usageHeaders:
-		if got := h.Get("X-Default-Value"); got != `{"new-ui":true}` {
+		if got := h.Get("X-ZEN-DEFAULT-VALUE"); got != `{"new-ui":true}` {
 			t.Fatalf("expected default-value header, got %q", got)
 		}
 	case <-time.After(2 * time.Second):
@@ -107,7 +107,7 @@ func TestAPIClientReportUsageSendsNonBooleanDefaultValueHeader(t *testing.T) {
 
 	select {
 	case h := <-usageHeaders:
-		if got := h.Get("X-Default-Value"); got != `{"num-flag":42}` {
+		if got := h.Get("X-ZEN-DEFAULT-VALUE"); got != `{"num-flag":42}` {
 			t.Fatalf("expected default-value header, got %q", got)
 		}
 	case <-time.After(2 * time.Second):
@@ -138,7 +138,7 @@ func TestAPIClientReportUsageOmitsDefaultValueHeaderWhenNotProvided(t *testing.T
 
 	select {
 	case h := <-usageHeaders:
-		if got := h.Get("X-Default-Value"); got != "" {
+		if got := h.Get("X-ZEN-DEFAULT-VALUE"); got != "" {
 			t.Fatalf("expected no default-value header, got %q", got)
 		}
 	case <-time.After(2 * time.Second):
@@ -170,10 +170,10 @@ func TestAPIClientReportUsageSendsBothContextAndDefaultValueHeaders(t *testing.T
 
 	select {
 	case h := <-usageHeaders:
-		if got := h.Get("X-Default-Value"); got != `{"num-flag":42}` {
+		if got := h.Get("X-ZEN-DEFAULT-VALUE"); got != `{"num-flag":42}` {
 			t.Fatalf("expected default-value header, got %q", got)
 		}
-		if h.Get("X-ZENMANAGE-CONTEXT") == "" {
+		if h.Get("X-ZEN-CONTEXT") == "" {
 			t.Fatalf("expected context header to be present")
 		}
 	case <-time.After(2 * time.Second):
