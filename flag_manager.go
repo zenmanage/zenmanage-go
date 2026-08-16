@@ -105,7 +105,7 @@ func (m *FlagManager) Single(ctx context.Context, key string, inlineDefault ...a
 		if err != nil {
 			return Flag{}, err
 		}
-		m.reportUsageAsync(key, contextValue, nil)
+		m.reportUsageAsync(key, contextValue, m.resolveEffectiveDefault(key, inlineDefault...))
 		return flag, nil
 	}
 
@@ -122,6 +122,20 @@ func (m *FlagManager) Single(ctx context.Context, key string, inlineDefault ...a
 		}
 	}
 	return Flag{}, &EvaluationError{Message: "flag not found and no default provided: " + key}
+}
+
+// resolveEffectiveDefault returns the default value that would be used for key,
+// preferring the inline default and falling back to a DefaultsCollection entry.
+func (m *FlagManager) resolveEffectiveDefault(key string, inlineDefault ...any) any {
+	if len(inlineDefault) > 0 {
+		return inlineDefault[0]
+	}
+	if m.defaults != nil {
+		if v, ok := m.defaults.Get(key); ok {
+			return v
+		}
+	}
+	return nil
 }
 
 func (m *FlagManager) getContext() *Context {

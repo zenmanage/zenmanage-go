@@ -183,6 +183,95 @@ func TestFlagManagerReportsUsageWithoutDefaultValueWhenFlagFound(t *testing.T) {
 	}
 }
 
+func TestFlagManagerReportsUsageWithInlineDefaultWhenFlagFound(t *testing.T) {
+	usageHeaders := make(chan http.Header, 2)
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v1/flag-json":
+			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
+		case r.URL.Path == "/rules.json":
+			_, _ = w.Write([]byte(`{"version":"1","flags":[{"version":"1","type":"boolean","key":"real-flag","name":"real-flag","target":{"value":{"value":{"boolean":true}}}}]}`))
+		case r.URL.Path == "/v1/flags/real-flag/usage":
+			usageHeaders <- r.Header.Clone()
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer server.Close()
+
+	cfg, _ := NewConfigBuilder().
+		WithEnvironmentToken("srv_token").
+		WithAPIEndpoint(server.URL).
+		WithHTTPClient(server.Client()).
+		Build()
+
+	manager := New(cfg).Flags()
+
+	flag, err := manager.Single(context.Background(), "real-flag", false)
+	if err != nil {
+		t.Fatalf("single failed: %v", err)
+	}
+	if !flag.AsBool() {
+		t.Fatalf("expected real flag value, not the inline default")
+	}
+
+	select {
+	case h := <-usageHeaders:
+		if got := h.Get("X-ZEN-DEFAULT-VALUE"); got != `{"real-flag":false}` {
+			t.Fatalf("expected inline default to be reported even though the flag was found, got %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for usage report")
+	}
+}
+
+func TestFlagManagerReportsUsageWithDefaultsCollectionValueWhenFlagFound(t *testing.T) {
+	usageHeaders := make(chan http.Header, 2)
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v1/flag-json":
+			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
+		case r.URL.Path == "/rules.json":
+			_, _ = w.Write([]byte(`{"version":"1","flags":[{"version":"1","type":"boolean","key":"real-flag","name":"real-flag","target":{"value":{"value":{"boolean":true}}}}]}`))
+		case r.URL.Path == "/v1/flags/real-flag/usage":
+			usageHeaders <- r.Header.Clone()
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer server.Close()
+
+	cfg, _ := NewConfigBuilder().
+		WithEnvironmentToken("srv_token").
+		WithAPIEndpoint(server.URL).
+		WithHTTPClient(server.Client()).
+		Build()
+
+	defaults := DefaultsFromMap(map[string]any{"real-flag": false})
+	manager := New(cfg).Flags().WithDefaults(defaults)
+
+	flag, err := manager.Single(context.Background(), "real-flag")
+	if err != nil {
+		t.Fatalf("single failed: %v", err)
+	}
+	if !flag.AsBool() {
+		t.Fatalf("expected real flag value, not the defaults collection value")
+	}
+
+	select {
+	case h := <-usageHeaders:
+		if got := h.Get("X-ZEN-DEFAULT-VALUE"); got != `{"real-flag":false}` {
+			t.Fatalf("expected defaults collection value to be reported even though the flag was found, got %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for usage report")
+	}
+}
+
 func TestFlagManagerAllDoesNotReportUsage(t *testing.T) {
 	usageHits := make(chan string, 2)
 	var server *httptest.Server
