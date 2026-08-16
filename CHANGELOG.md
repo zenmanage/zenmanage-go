@@ -13,6 +13,7 @@ The format follows Keep a Changelog and Semantic Versioning.
 ### Fixed
 
 - `FlagManager.All()` no longer reports per-flag usage as it evaluates the collection. Usage reporting stays on the `Single()` path, matching every other SDK — `All()` is a retrieval, not a usage signal.
+- `FlagManager.Single()` now reports the effective default value (inline parameter, falling back to a `DefaultsCollection` entry) on every usage report, including when the flag is found and evaluated normally. Previously the default was only sent on the fallback paths.
 
 ## [0.1.0] - 2026-05-07
 
