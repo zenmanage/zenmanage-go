@@ -86,7 +86,6 @@ func (m *FlagManager) All(ctx context.Context) ([]Flag, error) {
 			return nil, err
 		}
 		out = append(out, flag)
-		m.reportUsageAsync(f.Key, contextValue, nil)
 	}
 	return out, nil
 }
