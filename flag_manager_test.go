@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -179,6 +180,47 @@ func TestFlagManagerReportsUsageWithoutDefaultValueWhenFlagFound(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for usage report")
+	}
+}
+
+func TestFlagManagerAllDoesNotReportUsage(t *testing.T) {
+	usageHits := make(chan string, 2)
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v1/flag-json":
+			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
+		case r.URL.Path == "/rules.json":
+			_, _ = w.Write([]byte(`{"version":"1","flags":[{"version":"1","type":"boolean","key":"flag-a","name":"flag-a","target":{"value":{"value":{"boolean":true}}}},{"version":"1","type":"boolean","key":"flag-b","name":"flag-b","target":{"value":{"value":{"boolean":false}}}}]}`))
+		case strings.HasPrefix(r.URL.Path, "/v1/flags/") && strings.HasSuffix(r.URL.Path, "/usage"):
+			usageHits <- r.URL.Path
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer server.Close()
+
+	cfg, _ := NewConfigBuilder().
+		WithEnvironmentToken("srv_token").
+		WithAPIEndpoint(server.URL).
+		WithHTTPClient(server.Client()).
+		Build()
+
+	manager := New(cfg).Flags()
+
+	flags, err := manager.All(context.Background())
+	if err != nil {
+		t.Fatalf("all failed: %v", err)
+	}
+	if len(flags) != 2 {
+		t.Fatalf("expected 2 flags, got %d", len(flags))
+	}
+
+	select {
+	case path := <-usageHits:
+		t.Fatalf("expected no usage report from All(), got request to %q", path)
+	case <-time.After(200 * time.Millisecond):
 	}
 }
 

@@ -10,6 +10,10 @@ The format follows Keep a Changelog and Semantic Versioning.
 
 - Renamed request headers to use a consistent `X-ZEN-` prefix, matching the server-side convention and the JavaScript/PHP SDKs: `X-API-Key` → `X-ZEN-API-KEY`, `X-ZENMANAGE-CONTEXT` → `X-ZEN-CONTEXT`, and `X-Default-Value` → `X-ZEN-DEFAULT-VALUE`. The API still accepts the old header names as legacy aliases, so this is non-breaking.
 
+### Fixed
+
+- `FlagManager.All()` no longer reports per-flag usage as it evaluates the collection. Usage reporting stays on the `Single()` path, matching every other SDK — `All()` is a retrieval, not a usage signal.
+
 ## [0.1.0] - 2026-05-07
 
 ### Added
