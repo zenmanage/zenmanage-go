@@ -3,6 +3,7 @@ package zenmanage
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -24,7 +25,7 @@ func startMockRulesServer(t *testing.T, rulesJSON string, onUsage func(r *http.R
 				"data": map[string]string{"cdn": server.URL, "path": "/rules.json"},
 			})
 		case r.URL.Path == "/rules.json":
-			_, _ = w.Write([]byte(rulesJSON))
+			_, _ = io.WriteString(w, rulesJSON)
 		case strings.HasPrefix(r.URL.Path, "/v1/flags/") && strings.HasSuffix(r.URL.Path, "/usage"):
 			if onUsage != nil {
 				onUsage(r)
