@@ -13,8 +13,7 @@ import (
 
 func TestAPIClientFetchRulesAndReportUsage(t *testing.T) {
 	var usageCount atomic.Int32
-	var server *httptest.Server
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/flag-json":
 			_ = json.NewEncoder(w).Encode(map[string]any{

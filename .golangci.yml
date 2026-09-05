@@ -1,31 +1,26 @@
-run:
-  timeout: 5m
-
+version: "2"
 linters:
-  disable-all: true
+  default: none
   enable:
-    - govet
     - errcheck
-    - staticcheck
-    - unused
+    - govet
     - ineffassign
-    - gofmt
-    - goimports
     - misspell
     - revive
-
-linters-settings:
-  revive:
-    rules:
-      - name: exported
-        disabled: true
-      - name: unused-parameter
-        disabled: true
-
-issues:
-  exclude-use-default: false
-  # Lint examples/ too — it's shipped, user-facing sample code, not a
-  # vendored/generated directory. golangci-lint's default skip-dirs list
-  # excludes any directory literally named "examples", which would
-  # otherwise silently hide real findings there.
-  exclude-dirs-use-default: false
+    - staticcheck
+    - unused
+  settings:
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+        - name: unused-parameter
+          disabled: true
+  exclusions:
+    generated: lax
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax

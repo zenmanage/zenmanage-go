@@ -57,14 +57,14 @@ func TestFlagManagerReportsUsageWithDefaultValue(t *testing.T) {
 	usageHeaders := make(chan http.Header, 2)
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/v1/flag-json":
+		switch r.URL.Path {
+		case "/v1/flag-json":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"data": map[string]string{"cdn": server.URL, "path": "/rules.json"},
 			})
-		case r.URL.Path == "/rules.json":
+		case "/rules.json":
 			_, _ = w.Write([]byte(`{"version":"1","flags":[]}`))
-		case r.URL.Path == "/v1/flags/missing/usage":
+		case "/v1/flags/missing/usage":
 			usageHeaders <- r.Header.Clone()
 			w.WriteHeader(http.StatusOK)
 		default:
@@ -103,14 +103,14 @@ func TestFlagManagerReportsUsageWithDefaultsCollectionValue(t *testing.T) {
 	usageHeaders := make(chan http.Header, 2)
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/v1/flag-json":
+		switch r.URL.Path {
+		case "/v1/flag-json":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"data": map[string]string{"cdn": server.URL, "path": "/rules.json"},
 			})
-		case r.URL.Path == "/rules.json":
+		case "/rules.json":
 			_, _ = w.Write([]byte(`{"version":"1","flags":[]}`))
-		case r.URL.Path == "/v1/flags/missing/usage":
+		case "/v1/flags/missing/usage":
 			usageHeaders <- r.Header.Clone()
 			w.WriteHeader(http.StatusOK)
 		default:
@@ -150,14 +150,14 @@ func TestFlagManagerReportsUsageWithoutDefaultValueWhenFlagFound(t *testing.T) {
 	usageHeaders := make(chan http.Header, 2)
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/v1/flag-json":
+		switch r.URL.Path {
+		case "/v1/flag-json":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"data": map[string]string{"cdn": server.URL, "path": "/rules.json"},
 			})
-		case r.URL.Path == "/rules.json":
+		case "/rules.json":
 			_, _ = w.Write([]byte(`{"version":"1","flags":[{"version":"1","type":"boolean","key":"real-flag","name":"real-flag","target":{"value":{"value":{"boolean":true}}}}]}`))
-		case r.URL.Path == "/v1/flags/real-flag/usage":
+		case "/v1/flags/real-flag/usage":
 			usageHeaders <- r.Header.Clone()
 			w.WriteHeader(http.StatusOK)
 		default:
@@ -196,14 +196,14 @@ func TestFlagManagerReportsUsageWithInlineDefaultWhenFlagFound(t *testing.T) {
 	usageHeaders := make(chan http.Header, 2)
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/v1/flag-json":
+		switch r.URL.Path {
+		case "/v1/flag-json":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"data": map[string]string{"cdn": server.URL, "path": "/rules.json"},
 			})
-		case r.URL.Path == "/rules.json":
+		case "/rules.json":
 			_, _ = w.Write([]byte(`{"version":"1","flags":[{"version":"1","type":"boolean","key":"real-flag","name":"real-flag","target":{"value":{"value":{"boolean":true}}}}]}`))
-		case r.URL.Path == "/v1/flags/real-flag/usage":
+		case "/v1/flags/real-flag/usage":
 			usageHeaders <- r.Header.Clone()
 			w.WriteHeader(http.StatusOK)
 		default:
@@ -242,14 +242,14 @@ func TestFlagManagerReportsUsageWithDefaultsCollectionValueWhenFlagFound(t *test
 	usageHeaders := make(chan http.Header, 2)
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/v1/flag-json":
+		switch r.URL.Path {
+		case "/v1/flag-json":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"data": map[string]string{"cdn": server.URL, "path": "/rules.json"},
 			})
-		case r.URL.Path == "/rules.json":
+		case "/rules.json":
 			_, _ = w.Write([]byte(`{"version":"1","flags":[{"version":"1","type":"boolean","key":"real-flag","name":"real-flag","target":{"value":{"value":{"boolean":true}}}}]}`))
-		case r.URL.Path == "/v1/flags/real-flag/usage":
+		case "/v1/flags/real-flag/usage":
 			usageHeaders <- r.Header.Clone()
 			w.WriteHeader(http.StatusOK)
 		default:
