@@ -1,14 +1,14 @@
-package middleware_test
+package ginmiddleware_test
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	zenmanage "github.com/zenmanage/zenmanage-go"
-	"github.com/zenmanage/zenmanage-go/middleware"
+	ginmiddleware "github.com/zenmanage/zenmanage-go/middleware/gin"
 )
 
 // buildPreloadedClient sets up a mock HTTP server that returns two flags and
@@ -49,16 +49,26 @@ func buildPreloadedClient(t *testing.T) *zenmanage.Zenmanage {
 	return zenmanage.New(cfg)
 }
 
+func newTestContext(req *http.Request) (*gin.Context, *httptest.ResponseRecorder) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+	return c, rec
+}
+
 func TestInjectFlags_NoUserID(t *testing.T) {
 	client := buildPreloadedClient(t)
 
 	var gotFM *zenmanage.FlagManager
-	handler := middleware.InjectFlags(client, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		gotFM = middleware.FlagManagerFromContext(r.Context())
-	}))
+	router := gin.New()
+	router.Use(ginmiddleware.InjectFlags(client))
+	router.GET("/", func(c *gin.Context) {
+		gotFM = ginmiddleware.FlagManagerFromContext(c)
+	})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	handler.ServeHTTP(httptest.NewRecorder(), req)
+	router.ServeHTTP(httptest.NewRecorder(), req)
 
 	if gotFM == nil {
 		t.Fatal("expected FlagManager in context")
@@ -69,30 +79,34 @@ func TestInjectFlags_WithUserID(t *testing.T) {
 	client := buildPreloadedClient(t)
 
 	var gotFM *zenmanage.FlagManager
-	handler := middleware.InjectFlags(client, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		gotFM = middleware.FlagManagerFromContext(r.Context())
-	}))
+	router := gin.New()
+	router.Use(ginmiddleware.InjectFlags(client))
+	router.GET("/", func(c *gin.Context) {
+		gotFM = ginmiddleware.FlagManagerFromContext(c)
+	})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("X-User-ID", "user-42")
-	handler.ServeHTTP(httptest.NewRecorder(), req)
+	router.ServeHTTP(httptest.NewRecorder(), req)
 
 	if gotFM == nil {
 		t.Fatal("expected FlagManager with user context")
 	}
 }
 
-func TestIsEnabled_ViaMWContext(t *testing.T) {
+func TestIsEnabled_ViaGinContext(t *testing.T) {
 	client := buildPreloadedClient(t)
 
 	var enabled bool
 	var evalErr error
-	handler := middleware.InjectFlags(client, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		enabled, evalErr = middleware.IsEnabled(r.Context(), "feat")
-	}))
+	router := gin.New()
+	router.Use(ginmiddleware.InjectFlags(client))
+	router.GET("/", func(c *gin.Context) {
+		enabled, evalErr = ginmiddleware.IsEnabled(c, "feat")
+	})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	handler.ServeHTTP(httptest.NewRecorder(), req)
+	router.ServeHTTP(httptest.NewRecorder(), req)
 
 	if evalErr != nil {
 		t.Fatalf("unexpected error: %v", evalErr)
@@ -103,23 +117,31 @@ func TestIsEnabled_ViaMWContext(t *testing.T) {
 }
 
 func TestIsEnabled_NoManager(t *testing.T) {
-	_, err := middleware.IsEnabled(context.Background(), "feat")
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c, rec := newTestContext(req)
+
+	_, err := ginmiddleware.IsEnabled(c, "feat")
 	if err == nil {
 		t.Fatal("expected error when no manager in context")
 	}
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rec.Code)
+	}
 }
 
-func TestGetString_ViaMWContext(t *testing.T) {
+func TestGetString_ViaGinContext(t *testing.T) {
 	client := buildPreloadedClient(t)
 
 	var val string
 	var evalErr error
-	handler := middleware.InjectFlags(client, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		val, evalErr = middleware.GetString(r.Context(), "color", "default")
-	}))
+	router := gin.New()
+	router.Use(ginmiddleware.InjectFlags(client))
+	router.GET("/", func(c *gin.Context) {
+		val, evalErr = ginmiddleware.GetString(c, "color", "default")
+	})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	handler.ServeHTTP(httptest.NewRecorder(), req)
+	router.ServeHTTP(httptest.NewRecorder(), req)
 
 	if evalErr != nil {
 		t.Fatalf("unexpected error: %v", evalErr)
@@ -130,7 +152,10 @@ func TestGetString_ViaMWContext(t *testing.T) {
 }
 
 func TestGetString_NoManager(t *testing.T) {
-	v, err := middleware.GetString(context.Background(), "color", "fallback")
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c, _ := newTestContext(req)
+
+	v, err := ginmiddleware.GetString(c, "color", "fallback")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -139,25 +164,30 @@ func TestGetString_NoManager(t *testing.T) {
 	}
 }
 
-func TestGetNumber_ViaMWContext(t *testing.T) {
+func TestGetNumber_ViaGinContext(t *testing.T) {
 	client := buildPreloadedClient(t)
 
-	handler := middleware.InjectFlags(client, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		n, err := middleware.GetNumber(r.Context(), "missing-num", 3.14)
+	router := gin.New()
+	router.Use(ginmiddleware.InjectFlags(client))
+	router.GET("/", func(c *gin.Context) {
+		n, err := ginmiddleware.GetNumber(c, "missing-num", 3.14)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
 		if n != 3.14 {
 			t.Errorf("expected default 3.14, got %v", n)
 		}
-	}))
+	})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	handler.ServeHTTP(httptest.NewRecorder(), req)
+	router.ServeHTTP(httptest.NewRecorder(), req)
 }
 
 func TestGetNumber_NoManager(t *testing.T) {
-	v, err := middleware.GetNumber(context.Background(), "n", 9.9)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c, _ := newTestContext(req)
+
+	v, err := ginmiddleware.GetNumber(c, "n", 9.9)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -167,7 +197,10 @@ func TestGetNumber_NoManager(t *testing.T) {
 }
 
 func TestFlagManagerFromContext_Nil(t *testing.T) {
-	fm := middleware.FlagManagerFromContext(context.Background())
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c, _ := newTestContext(req)
+
+	fm := ginmiddleware.FlagManagerFromContext(c)
 	if fm != nil {
 		t.Fatal("expected nil when no manager injected")
 	}

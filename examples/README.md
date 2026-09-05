@@ -10,3 +10,4 @@ Each file exposes a function that can be adapted into runnable application code.
 - ab_testing.go
 - caching.go
 - defaults.go
+- middleware.go

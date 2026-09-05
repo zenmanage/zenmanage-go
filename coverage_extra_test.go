@@ -2,6 +2,7 @@ package zenmanage
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,10 +12,10 @@ import (
 // --- Errors ---
 
 func TestErrorMessages(t *testing.T) {
-	if (&ConfigurationError{"bad config"}).Error() != "bad config" {
+	if (&ConfigurationError{Message: "bad config"}).Error() != "bad config" {
 		t.Fatalf("ConfigurationError message wrong")
 	}
-	if (&EvaluationError{"eval fail"}).Error() != "eval fail" {
+	if (&EvaluationError{Message: "eval fail"}).Error() != "eval fail" {
 		t.Fatalf("EvaluationError message wrong")
 	}
 	e := &FetchRulesError{Message: "net error", StatusCode: 503}
@@ -25,8 +26,28 @@ func TestErrorMessages(t *testing.T) {
 	if e2.Error() != "no status" {
 		t.Fatalf("FetchRulesError no-status message wrong")
 	}
-	if (&InvalidRulesError{"bad json"}).Error() != "bad json" {
+	if (&InvalidRulesError{Message: "bad json"}).Error() != "bad json" {
 		t.Fatalf("InvalidRulesError message wrong")
+	}
+}
+
+func TestErrorInterfaceSatisfiedByAllErrorTypes(t *testing.T) {
+	var errs []Error
+	errs = append(errs, &ConfigurationError{Message: "x"})
+	errs = append(errs, &EvaluationError{Message: "x"})
+	errs = append(errs, &FetchRulesError{Message: "x"})
+	errs = append(errs, &InvalidRulesError{Message: "x"})
+
+	for _, e := range errs {
+		if e.Error() == "" {
+			t.Fatalf("expected non-empty message for %T", e)
+		}
+	}
+
+	var target Error
+	var err error = &ConfigurationError{Message: "bad config"}
+	if !errors.As(err, &target) {
+		t.Fatalf("expected errors.As to match the shared Error interface")
 	}
 }
 

@@ -409,3 +409,57 @@ func TestFlagManagerRefreshRulesClearsCache(t *testing.T) {
 		t.Fatalf("expected refreshed rules")
 	}
 }
+
+func TestFlagManagerManualReportUsage(t *testing.T) {
+	received := make(chan http.Header, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/flags/manual-flag/usage" {
+			received <- r.Header.Clone()
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	cfg, _ := NewConfigBuilder().
+		WithEnvironmentToken("srv_token").
+		WithAPIEndpoint(server.URL).
+		WithHTTPClient(server.Client()).
+		Build()
+
+	manager := New(cfg).Flags().WithContext(SingleContext("user", "user-1", ""))
+
+	if err := manager.ReportUsage(context.Background(), "manual-flag", false); err != nil {
+		t.Fatalf("ReportUsage failed: %v", err)
+	}
+
+	select {
+	case h := <-received:
+		if got := h.Get("X-ZEN-DEFAULT-VALUE"); got != `{"manual-flag":false}` {
+			t.Fatalf("expected default-value header, got %q", got)
+		}
+		if h.Get("X-ZEN-CONTEXT") == "" {
+			t.Fatalf("expected context header to be set from manager's current context")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for usage report")
+	}
+}
+
+func TestFlagManagerManualReportUsagePropagatesErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	cfg, _ := NewConfigBuilder().
+		WithEnvironmentToken("srv_token").
+		WithAPIEndpoint(server.URL).
+		WithHTTPClient(server.Client()).
+		Build()
+
+	manager := New(cfg).Flags()
+
+	if err := manager.ReportUsage(context.Background(), "manual-flag", nil); err == nil {
+		t.Fatal("expected error when usage reporting fails")
+	}
+}

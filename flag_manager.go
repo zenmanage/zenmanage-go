@@ -124,6 +124,15 @@ func (m *FlagManager) Single(ctx context.Context, key string, inlineDefault ...a
 	return Flag{}, &EvaluationError{Message: "flag not found and no default provided: " + key}
 }
 
+// ReportUsage manually reports flag usage to the API, using the manager's
+// current context (if any). Single already reports usage automatically on
+// every evaluation; call this directly only when usage needs to be recorded
+// outside of a Single/All evaluation path, matching the explicit reportUsage
+// method exposed by the JavaScript, PHP, and Python SDKs.
+func (m *FlagManager) ReportUsage(ctx context.Context, key string, defaultValue any) error {
+	return m.apiClient.ReportUsage(ctx, key, m.getContext(), defaultValue)
+}
+
 // resolveEffectiveDefault returns the default value that would be used for key,
 // preferring the inline default and falling back to a DefaultsCollection entry.
 func (m *FlagManager) resolveEffectiveDefault(key string, inlineDefault ...any) any {
