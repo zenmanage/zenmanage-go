@@ -418,7 +418,7 @@ func TestAPIClientInvalidRulesResponse(t *testing.T) {
 }
 
 func TestAPIClientMissingCDNPath(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"data":{}}`))
 	}))
 	defer server.Close()
@@ -437,7 +437,7 @@ func TestAPIClientMissingCDNPath(t *testing.T) {
 }
 
 func TestAPIClientNonJSON404(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{bad`))
 	}))
 	defer server.Close()

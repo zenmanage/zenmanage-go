@@ -301,10 +301,13 @@ go test ./... -coverprofile=coverage.out
 ## Linting
 
 CI runs [golangci-lint](https://golangci-lint.run/) against the root module and
-each middleware submodule (`.golangci.yml`). Run it locally with:
+each middleware submodule (`.golangci.yml`). Each is a separate Go module, so
+run it in each directory:
 
 ~~~bash
 golangci-lint run ./...
+(cd middleware/gin && golangci-lint run ./...)
+(cd middleware/echo && golangci-lint run ./...)
 ~~~
 
 ## Contributing
