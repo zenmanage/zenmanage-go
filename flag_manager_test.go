@@ -2,6 +2,8 @@ package zenmanage
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,19 +11,36 @@ import (
 	"time"
 )
 
-func TestFlagManagerSingleAndDefaultsPriority(t *testing.T) {
+// startMockRulesServer starts an httptest.Server that serves rulesJSON at
+// /rules.json (fronted by the usual /v1/flag-json CDN indirection). If
+// onUsage is non-nil, it's invoked with the request for any
+// /v1/flags/*/usage hit before responding 200.
+func startMockRulesServer(t *testing.T, rulesJSON string, onUsage func(r *http.Request)) *httptest.Server {
+	t.Helper()
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
-		case "/rules.json":
-			_, _ = w.Write([]byte(`{"version":"1","flags":[]}`))
+		switch {
+		case r.URL.Path == "/v1/flag-json":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]string{"cdn": server.URL, "path": "/rules.json"},
+			})
+		case r.URL.Path == "/rules.json":
+			_, _ = io.WriteString(w, rulesJSON)
+		case strings.HasPrefix(r.URL.Path, "/v1/flags/") && strings.HasSuffix(r.URL.Path, "/usage"):
+			if onUsage != nil {
+				onUsage(r)
+			}
+			w.WriteHeader(http.StatusOK)
 		default:
 			w.WriteHeader(http.StatusOK)
 		}
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
+	return server
+}
+
+func TestFlagManagerSingleAndDefaultsPriority(t *testing.T) {
+	server := startMockRulesServer(t, `{"version":"1","flags":[]}`, nil)
 
 	cfg, _ := NewConfigBuilder().
 		WithEnvironmentToken("srv_token").
@@ -52,21 +71,9 @@ func TestFlagManagerSingleAndDefaultsPriority(t *testing.T) {
 
 func TestFlagManagerReportsUsageWithDefaultValue(t *testing.T) {
 	usageHeaders := make(chan http.Header, 2)
-	var server *httptest.Server
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
-		case r.URL.Path == "/rules.json":
-			_, _ = w.Write([]byte(`{"version":"1","flags":[]}`))
-		case r.URL.Path == "/v1/flags/missing/usage":
-			usageHeaders <- r.Header.Clone()
-			w.WriteHeader(http.StatusOK)
-		default:
-			w.WriteHeader(http.StatusOK)
-		}
-	}))
-	defer server.Close()
+	server := startMockRulesServer(t, `{"version":"1","flags":[]}`, func(r *http.Request) {
+		usageHeaders <- r.Header.Clone()
+	})
 
 	cfg, _ := NewConfigBuilder().
 		WithEnvironmentToken("srv_token").
@@ -96,21 +103,9 @@ func TestFlagManagerReportsUsageWithDefaultValue(t *testing.T) {
 
 func TestFlagManagerReportsUsageWithDefaultsCollectionValue(t *testing.T) {
 	usageHeaders := make(chan http.Header, 2)
-	var server *httptest.Server
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
-		case r.URL.Path == "/rules.json":
-			_, _ = w.Write([]byte(`{"version":"1","flags":[]}`))
-		case r.URL.Path == "/v1/flags/missing/usage":
-			usageHeaders <- r.Header.Clone()
-			w.WriteHeader(http.StatusOK)
-		default:
-			w.WriteHeader(http.StatusOK)
-		}
-	}))
-	defer server.Close()
+	server := startMockRulesServer(t, `{"version":"1","flags":[]}`, func(r *http.Request) {
+		usageHeaders <- r.Header.Clone()
+	})
 
 	cfg, _ := NewConfigBuilder().
 		WithEnvironmentToken("srv_token").
@@ -141,21 +136,10 @@ func TestFlagManagerReportsUsageWithDefaultsCollectionValue(t *testing.T) {
 
 func TestFlagManagerReportsUsageWithoutDefaultValueWhenFlagFound(t *testing.T) {
 	usageHeaders := make(chan http.Header, 2)
-	var server *httptest.Server
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
-		case r.URL.Path == "/rules.json":
-			_, _ = w.Write([]byte(`{"version":"1","flags":[{"version":"1","type":"boolean","key":"real-flag","name":"real-flag","target":{"value":{"value":{"boolean":true}}}}]}`))
-		case r.URL.Path == "/v1/flags/real-flag/usage":
-			usageHeaders <- r.Header.Clone()
-			w.WriteHeader(http.StatusOK)
-		default:
-			w.WriteHeader(http.StatusOK)
-		}
-	}))
-	defer server.Close()
+	server := startMockRulesServer(t,
+		`{"version":"1","flags":[{"version":"1","type":"boolean","key":"real-flag","name":"real-flag","target":{"value":{"value":{"boolean":true}}}}]}`,
+		func(r *http.Request) { usageHeaders <- r.Header.Clone() },
+	)
 
 	cfg, _ := NewConfigBuilder().
 		WithEnvironmentToken("srv_token").
@@ -185,21 +169,10 @@ func TestFlagManagerReportsUsageWithoutDefaultValueWhenFlagFound(t *testing.T) {
 
 func TestFlagManagerReportsUsageWithInlineDefaultWhenFlagFound(t *testing.T) {
 	usageHeaders := make(chan http.Header, 2)
-	var server *httptest.Server
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
-		case r.URL.Path == "/rules.json":
-			_, _ = w.Write([]byte(`{"version":"1","flags":[{"version":"1","type":"boolean","key":"real-flag","name":"real-flag","target":{"value":{"value":{"boolean":true}}}}]}`))
-		case r.URL.Path == "/v1/flags/real-flag/usage":
-			usageHeaders <- r.Header.Clone()
-			w.WriteHeader(http.StatusOK)
-		default:
-			w.WriteHeader(http.StatusOK)
-		}
-	}))
-	defer server.Close()
+	server := startMockRulesServer(t,
+		`{"version":"1","flags":[{"version":"1","type":"boolean","key":"real-flag","name":"real-flag","target":{"value":{"value":{"boolean":true}}}}]}`,
+		func(r *http.Request) { usageHeaders <- r.Header.Clone() },
+	)
 
 	cfg, _ := NewConfigBuilder().
 		WithEnvironmentToken("srv_token").
@@ -229,21 +202,10 @@ func TestFlagManagerReportsUsageWithInlineDefaultWhenFlagFound(t *testing.T) {
 
 func TestFlagManagerReportsUsageWithDefaultsCollectionValueWhenFlagFound(t *testing.T) {
 	usageHeaders := make(chan http.Header, 2)
-	var server *httptest.Server
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
-		case r.URL.Path == "/rules.json":
-			_, _ = w.Write([]byte(`{"version":"1","flags":[{"version":"1","type":"boolean","key":"real-flag","name":"real-flag","target":{"value":{"value":{"boolean":true}}}}]}`))
-		case r.URL.Path == "/v1/flags/real-flag/usage":
-			usageHeaders <- r.Header.Clone()
-			w.WriteHeader(http.StatusOK)
-		default:
-			w.WriteHeader(http.StatusOK)
-		}
-	}))
-	defer server.Close()
+	server := startMockRulesServer(t,
+		`{"version":"1","flags":[{"version":"1","type":"boolean","key":"real-flag","name":"real-flag","target":{"value":{"value":{"boolean":true}}}}]}`,
+		func(r *http.Request) { usageHeaders <- r.Header.Clone() },
+	)
 
 	cfg, _ := NewConfigBuilder().
 		WithEnvironmentToken("srv_token").
@@ -274,21 +236,10 @@ func TestFlagManagerReportsUsageWithDefaultsCollectionValueWhenFlagFound(t *test
 
 func TestFlagManagerAllDoesNotReportUsage(t *testing.T) {
 	usageHits := make(chan string, 2)
-	var server *httptest.Server
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
-		case r.URL.Path == "/rules.json":
-			_, _ = w.Write([]byte(`{"version":"1","flags":[{"version":"1","type":"boolean","key":"flag-a","name":"flag-a","target":{"value":{"value":{"boolean":true}}}},{"version":"1","type":"boolean","key":"flag-b","name":"flag-b","target":{"value":{"value":{"boolean":false}}}}]}`))
-		case strings.HasPrefix(r.URL.Path, "/v1/flags/") && strings.HasSuffix(r.URL.Path, "/usage"):
-			usageHits <- r.URL.Path
-			w.WriteHeader(http.StatusOK)
-		default:
-			w.WriteHeader(http.StatusOK)
-		}
-	}))
-	defer server.Close()
+	server := startMockRulesServer(t,
+		`{"version":"1","flags":[{"version":"1","type":"boolean","key":"flag-a","name":"flag-a","target":{"value":{"value":{"boolean":true}}}},{"version":"1","type":"boolean","key":"flag-b","name":"flag-b","target":{"value":{"value":{"boolean":false}}}}]}`,
+		func(r *http.Request) { usageHits <- r.URL.Path },
+	)
 
 	cfg, _ := NewConfigBuilder().
 		WithEnvironmentToken("srv_token").
@@ -382,18 +333,7 @@ func TestFlagManagerRefreshRulesClearsCache(t *testing.T) {
 	_ = manager.cache.Set(rulesCacheKey, `{"version":"1","flags":[]}`, time.Minute)
 	manager.rules = &RulesResponse{Version: "1", Flags: []FlagData{}}
 
-	var server *httptest.Server
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
-		case "/rules.json":
-			_, _ = w.Write([]byte(`{"version":"2","flags":[]}`))
-		default:
-			w.WriteHeader(http.StatusOK)
-		}
-	}))
-	defer server.Close()
+	server := startMockRulesServer(t, `{"version":"2","flags":[]}`, nil)
 
 	cfg2, _ := NewConfigBuilder().
 		WithEnvironmentToken("srv_token").
@@ -446,7 +386,7 @@ func TestFlagManagerManualReportUsage(t *testing.T) {
 }
 
 func TestFlagManagerManualReportUsagePropagatesErrors(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer server.Close()

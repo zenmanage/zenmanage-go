@@ -19,9 +19,16 @@ type Logger interface {
 // NullLogger is a silent logger.
 type NullLogger struct{}
 
+// Debug discards the message.
 func (NullLogger) Debug(string, map[string]any) {}
-func (NullLogger) Info(string, map[string]any)  {}
-func (NullLogger) Warn(string, map[string]any)  {}
+
+// Info discards the message.
+func (NullLogger) Info(string, map[string]any) {}
+
+// Warn discards the message.
+func (NullLogger) Warn(string, map[string]any) {}
+
+// Error discards the message.
 func (NullLogger) Error(string, map[string]any) {}
 
 // Config stores SDK configuration.

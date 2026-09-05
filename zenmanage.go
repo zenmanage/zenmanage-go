@@ -1,3 +1,10 @@
+// Package zenmanage is the Zenmanage feature-flag SDK for Go server
+// applications. It evaluates flags locally against cached rules fetched
+// from the Zenmanage API, supporting context-based targeting, percentage
+// rollouts, and usage reporting.
+//
+// See the [Zenmanage] type for the main entry point, and the middleware
+// sub-package for framework integrations.
 package zenmanage
 
 import "context"

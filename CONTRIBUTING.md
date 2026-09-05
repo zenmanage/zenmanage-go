@@ -4,12 +4,24 @@ Thanks for your interest in contributing.
 
 ## Development Setup
 
-1. Install Go 1.22+
+1. Install Go 1.25+
 2. Clone the repository
 3. Run tests
 
 ~~~bash
 go test ./... -cover
+~~~
+
+4. Run the linter
+
+This repo is three separate Go modules (the root SDK, `middleware/gin`,
+and `middleware/echo`) — `golangci-lint run ./...` only covers whichever
+one you're standing in, so run it in each:
+
+~~~bash
+golangci-lint run ./...
+(cd middleware/gin && golangci-lint run ./...)
+(cd middleware/echo && golangci-lint run ./...)
 ~~~
 
 ## Quality Bar

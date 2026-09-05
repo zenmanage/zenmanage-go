@@ -42,7 +42,7 @@ func TestConfigFromEnvironment(t *testing.T) {
 	}
 }
 
-func TestConfigFromEnvironmentNoPanicWithoutVars(t *testing.T) {
+func TestConfigFromEnvironmentNoPanicWithoutVars(_ *testing.T) {
 	_ = os.Unsetenv("ZENMANAGE_ENVIRONMENT_TOKEN")
 	_ = ConfigFromEnvironment()
 }

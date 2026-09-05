@@ -1,3 +1,6 @@
+// Package examples contains runnable samples demonstrating the Zenmanage
+// Go SDK, mirroring the sample set in the JavaScript and PHP SDKs. Each
+// file exposes a function that can be adapted into application code.
 package examples
 
 import (

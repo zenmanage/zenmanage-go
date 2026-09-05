@@ -2,6 +2,7 @@ package zenmanage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,13 +13,14 @@ import (
 
 func TestAPIClientFetchRulesAndReportUsage(t *testing.T) {
 	var usageCount atomic.Int32
-	var server *httptest.Server
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + serverURL(t, r) + `","path":"/rules.json"}}`))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]string{"cdn": serverURL(t, r), "path": "/rules.json"},
+			})
 		case "/rules.json":
-			_, _ = w.Write([]byte(`{"version":"1","flags":[]}`))
+			_ = json.NewEncoder(w).Encode(map[string]any{"version": "1", "flags": []any{}})
 		case "/v1/flags/test-flag/usage":
 			usageCount.Add(1)
 			w.WriteHeader(http.StatusOK)
@@ -190,11 +192,13 @@ func TestAPIClientRetriesServerErrors(t *testing.T) {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]string{"cdn": server.URL, "path": "/rules.json"},
+			})
 			return
 		}
 		if r.URL.Path == "/rules.json" {
-			_, _ = w.Write([]byte(`{"version":"1","flags":[]}`))
+			_ = json.NewEncoder(w).Encode(map[string]any{"version": "1", "flags": []any{}})
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)

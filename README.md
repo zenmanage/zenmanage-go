@@ -1,7 +1,8 @@
 # Zenmanage Go SDK
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/zenmanage/zenmanage-go.svg)](https://pkg.go.dev/github.com/zenmanage/zenmanage-go)
-[![Go Report Card](https://goreportcard.com/badge/github.com/zenmanage/zenmanage-go)](https://goreportcard.com/report/github.com/zenmanage/zenmanage-go)
+[![CI](https://github.com/zenmanage/zenmanage-go/actions/workflows/ci.yml/badge.svg)](https://github.com/zenmanage/zenmanage-go/actions/workflows/ci.yml)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/e45d035523964569bb95d00e5e2c0a82)](https://app.codacy.com/gh/zenmanage/zenmanage-go/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 
 Add feature flags to your Go services in minutes. Control feature rollouts, run A/B tests, and manage configuration without redeploying.
 
@@ -21,7 +22,7 @@ go get github.com/zenmanage/zenmanage-go
 
 Requirements:
 
-- Go 1.22+
+- Go 1.25+
 - Server token prefixed with srv_
 
 ## Key Compatibility
@@ -297,13 +298,21 @@ loading rules from the API, with an optional `StatusCode`), and
 go test ./... -coverprofile=coverage.out
 ~~~
 
+## Linting
+
+CI runs [golangci-lint](https://golangci-lint.run/) against the root module and
+each middleware submodule (`.golangci.yml`). Each is a separate Go module, so
+run it in each directory:
+
+~~~bash
+golangci-lint run ./...
+(cd middleware/gin && golangci-lint run ./...)
+(cd middleware/echo && golangci-lint run ./...)
+~~~
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Publishing
-
-See [docs/PUBLISHING_NEXT_STEPS.md](docs/PUBLISHING_NEXT_STEPS.md) for a complete release and publication checklist.
 
 ## License
 
