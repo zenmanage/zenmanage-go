@@ -24,6 +24,14 @@ Requirements:
 - Go 1.22+
 - Server token prefixed with srv_
 
+## Key Compatibility
+
+- Server runtime only: environment tokens prefixed with `srv_`.
+- Client keys (`cli_`) and mobile keys (`mob_`) are rejected by this SDK at
+  configuration time via `ConfigurationError` — this is a server-side SDK,
+  matching the PHP core SDK's key requirements. Use `zenmanage-javascript` (or
+  another browser/mobile SDK) for client- or mobile-key runtimes.
+
 ## Quick Start
 
 ~~~go
@@ -125,6 +133,33 @@ flag, err := client.Flags().
     Single(context.Background(), "new-ui")
 ~~~
 
+### Fetch All Flags
+
+~~~go
+flags, err := client.Flags().All(context.Background())
+if err != nil {
+    log.Fatal(err)
+}
+for _, flag := range flags {
+    fmt.Println(flag.Key(), flag.Value())
+}
+~~~
+
+`All` evaluates every flag in the environment against the manager's current
+context in one call. Unlike `Single`, it does not report per-flag usage —
+usage reporting is a signal tied to a specific evaluation decision, not a bulk
+retrieval.
+
+### Manual Usage Reporting
+
+`Single` reports usage automatically on every evaluation. Call `ReportUsage`
+directly only when you need to record usage outside of a `Single`/`All`
+evaluation path (for example, after evaluating a flag some other way):
+
+~~~go
+err := client.Flags().ReportUsage(context.Background(), "new-dashboard", false)
+~~~
+
 ## Configuration
 
 Build configuration with fluent helpers:
@@ -216,6 +251,45 @@ e.GET("/feature", func(c echo.Context) error {
     ...
 })
 ~~~
+
+## Error Handling
+
+Every error this SDK returns satisfies the shared `zenmanage.Error` interface,
+in addition to the standard `error` interface, so you can distinguish SDK
+errors from other errors with `errors.As`:
+
+~~~go
+import (
+    "errors"
+
+    "github.com/zenmanage/zenmanage-go"
+)
+
+flag, err := client.Flags().Single(ctx, "unknown-flag")
+if err != nil {
+    var evalErr *zenmanage.EvaluationError
+    var fetchErr *zenmanage.FetchRulesError
+    switch {
+    case errors.As(err, &evalErr):
+        log.Println("flag not found:", evalErr.Message)
+    case errors.As(err, &fetchErr):
+        log.Println("failed to fetch rules:", fetchErr.Message, fetchErr.StatusCode)
+    default:
+        var zmErr zenmanage.Error
+        if errors.As(err, &zmErr) {
+            log.Println("SDK error:", zmErr)
+        }
+    }
+}
+
+// Or pass an inline default to avoid the "not found" error entirely.
+flag, err = client.Flags().Single(ctx, "unknown-flag", false)
+~~~
+
+The concrete error types are `ConfigurationError` (invalid SDK setup),
+`EvaluationError` (rule/flag evaluation failure), `FetchRulesError` (failure
+loading rules from the API, with an optional `StatusCode`), and
+`InvalidRulesError` (malformed rules payload).
 
 ## Testing
 

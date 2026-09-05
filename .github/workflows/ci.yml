@@ -10,6 +10,23 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        include:
+          - name: root
+            path: .
+            threshold: 80
+          - name: middleware-gin
+            path: middleware/gin
+            threshold: 85
+          - name: middleware-echo
+            path: middleware/echo
+            threshold: 85
+
+    defaults:
+      run:
+        working-directory: ${{ matrix.path }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -24,10 +41,18 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test ./... -race -coverprofile=coverage.out
+        run: go test $(go list ./... | grep -v /examples) -race -coverprofile=coverage.out
+
+      - name: Enforce coverage threshold
+        run: |
+          total=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}' | tr -d '%')
+          echo "Total coverage for ${{ matrix.name }}: ${total}%"
+          awk -v total="$total" -v threshold="${{ matrix.threshold }}" \
+            'BEGIN { exit (total + 0 < threshold + 0) }' \
+            || { echo "Coverage ${total}% is below the ${{ matrix.threshold }}% threshold"; exit 1; }
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
-          name: coverage
-          path: coverage.out
+          name: coverage-${{ matrix.name }}
+          path: ${{ matrix.path }}/coverage.out
