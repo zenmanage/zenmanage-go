@@ -22,7 +22,7 @@ Go package distribution is tag-driven.
 3. Create an annotated tag.
 
 ~~~bash
-git tag -a v0.1.0 -m "Initial Go SDK release"
+git tag -a v1.0.0 -m "v1.0.0"
 git push origin main --tags
 ~~~
 
@@ -54,7 +54,7 @@ Go does not use a central upload workflow like npm or PyPI. Publication happens 
 ~~~bash
 go clean -modcache
 go list -m -versions github.com/zenmanage/zenmanage-go
-go get github.com/zenmanage/zenmanage-go@v0.1.0
+go get github.com/zenmanage/zenmanage-go@v1.0.0
 ~~~
 
 ## 5. Backward Compatibility Policy

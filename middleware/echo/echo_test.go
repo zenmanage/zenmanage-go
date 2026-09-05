@@ -1,7 +1,7 @@
 package echomiddleware_test
 
 import (
-	"fmt"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,8 +26,9 @@ func buildPreloadedClient(t *testing.T) *zenmanage.Zenmanage {
 		switch r.URL.Path {
 		case "/v1/flag-json":
 			w.Header().Set("Content-Type", "application/json")
-			metadataJSON := fmt.Sprintf(`{"data":{"cdn":"%s","path":"/rules.json"}}`, srv.URL)
-			_, _ = w.Write([]byte(metadataJSON))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]string{"cdn": srv.URL, "path": "/rules.json"},
+			})
 		case "/rules.json":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(rulesJSON))
