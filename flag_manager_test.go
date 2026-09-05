@@ -2,6 +2,7 @@ package zenmanage
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,7 +15,9 @@ func TestFlagManagerSingleAndDefaultsPriority(t *testing.T) {
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]string{"cdn": server.URL, "path": "/rules.json"},
+			})
 		case "/rules.json":
 			_, _ = w.Write([]byte(`{"version":"1","flags":[]}`))
 		default:
@@ -56,7 +59,9 @@ func TestFlagManagerReportsUsageWithDefaultValue(t *testing.T) {
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]string{"cdn": server.URL, "path": "/rules.json"},
+			})
 		case r.URL.Path == "/rules.json":
 			_, _ = w.Write([]byte(`{"version":"1","flags":[]}`))
 		case r.URL.Path == "/v1/flags/missing/usage":
@@ -100,7 +105,9 @@ func TestFlagManagerReportsUsageWithDefaultsCollectionValue(t *testing.T) {
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]string{"cdn": server.URL, "path": "/rules.json"},
+			})
 		case r.URL.Path == "/rules.json":
 			_, _ = w.Write([]byte(`{"version":"1","flags":[]}`))
 		case r.URL.Path == "/v1/flags/missing/usage":
@@ -145,7 +152,9 @@ func TestFlagManagerReportsUsageWithoutDefaultValueWhenFlagFound(t *testing.T) {
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]string{"cdn": server.URL, "path": "/rules.json"},
+			})
 		case r.URL.Path == "/rules.json":
 			_, _ = w.Write([]byte(`{"version":"1","flags":[{"version":"1","type":"boolean","key":"real-flag","name":"real-flag","target":{"value":{"value":{"boolean":true}}}}]}`))
 		case r.URL.Path == "/v1/flags/real-flag/usage":
@@ -189,7 +198,9 @@ func TestFlagManagerReportsUsageWithInlineDefaultWhenFlagFound(t *testing.T) {
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]string{"cdn": server.URL, "path": "/rules.json"},
+			})
 		case r.URL.Path == "/rules.json":
 			_, _ = w.Write([]byte(`{"version":"1","flags":[{"version":"1","type":"boolean","key":"real-flag","name":"real-flag","target":{"value":{"value":{"boolean":true}}}}]}`))
 		case r.URL.Path == "/v1/flags/real-flag/usage":
@@ -233,7 +244,9 @@ func TestFlagManagerReportsUsageWithDefaultsCollectionValueWhenFlagFound(t *test
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]string{"cdn": server.URL, "path": "/rules.json"},
+			})
 		case r.URL.Path == "/rules.json":
 			_, _ = w.Write([]byte(`{"version":"1","flags":[{"version":"1","type":"boolean","key":"real-flag","name":"real-flag","target":{"value":{"value":{"boolean":true}}}}]}`))
 		case r.URL.Path == "/v1/flags/real-flag/usage":
@@ -278,7 +291,9 @@ func TestFlagManagerAllDoesNotReportUsage(t *testing.T) {
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]string{"cdn": server.URL, "path": "/rules.json"},
+			})
 		case r.URL.Path == "/rules.json":
 			_, _ = w.Write([]byte(`{"version":"1","flags":[{"version":"1","type":"boolean","key":"flag-a","name":"flag-a","target":{"value":{"value":{"boolean":true}}}},{"version":"1","type":"boolean","key":"flag-b","name":"flag-b","target":{"value":{"value":{"boolean":false}}}}]}`))
 		case strings.HasPrefix(r.URL.Path, "/v1/flags/") && strings.HasSuffix(r.URL.Path, "/usage"):
@@ -386,7 +401,9 @@ func TestFlagManagerRefreshRulesClearsCache(t *testing.T) {
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]string{"cdn": server.URL, "path": "/rules.json"},
+			})
 		case "/rules.json":
 			_, _ = w.Write([]byte(`{"version":"2","flags":[]}`))
 		default:

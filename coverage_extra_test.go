@@ -2,6 +2,7 @@ package zenmanage
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -392,7 +393,9 @@ func TestAPIClientInvalidRulesResponse(t *testing.T) {
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + server.URL + `","path":"/rules.json"}}`))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]string{"cdn": server.URL, "path": "/rules.json"},
+			})
 		case "/rules.json":
 			_, _ = w.Write([]byte(`not json`))
 		default:

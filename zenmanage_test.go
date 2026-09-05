@@ -2,6 +2,7 @@ package zenmanage
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,7 +21,9 @@ func newConvenienceClient(t *testing.T) *Zenmanage {
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/flag-json":
-			_, _ = w.Write([]byte(`{"data":{"cdn":"` + srv.URL + `","path":"/rules.json"}}`))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]string{"cdn": srv.URL, "path": "/rules.json"},
+			})
 		case "/rules.json":
 			_, _ = w.Write([]byte(convenienceRulesJSON))
 		default:
@@ -98,4 +101,3 @@ func TestGetNumberConvenience(t *testing.T) {
 		t.Fatalf("expected default 99.9: err=%v n=%v", err, n)
 	}
 }
-

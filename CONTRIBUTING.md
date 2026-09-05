@@ -4,12 +4,18 @@ Thanks for your interest in contributing.
 
 ## Development Setup
 
-1. Install Go 1.22+
+1. Install Go 1.25+
 2. Clone the repository
 3. Run tests
 
 ~~~bash
 go test ./... -cover
+~~~
+
+4. Run the linter
+
+~~~bash
+golangci-lint run ./...
 ~~~
 
 ## Quality Bar

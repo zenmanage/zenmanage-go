@@ -2,6 +2,7 @@ package examples
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 
@@ -35,9 +36,9 @@ func Middleware(token string, addr string) {
 			return
 		}
 		if enabled {
-			fmt.Fprintln(w, "new-feature is ON")
+			_, _ = fmt.Fprintln(w, "new-feature is ON")
 		} else {
-			fmt.Fprintln(w, "new-feature is OFF")
+			_, _ = fmt.Fprintln(w, "new-feature is OFF")
 		}
 	})
 
@@ -48,7 +49,8 @@ func Middleware(token string, addr string) {
 			http.Error(w, "flag evaluation failed", http.StatusInternalServerError)
 			return
 		}
-		fmt.Fprintf(w, "button color: %s\n", color)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = io.WriteString(w, fmt.Sprintf("button color: %s\n", color))
 	})
 
 	// /rate — returns the "request-rate-limit" numeric flag value.
@@ -58,12 +60,16 @@ func Middleware(token string, addr string) {
 			http.Error(w, "flag evaluation failed", http.StatusInternalServerError)
 			return
 		}
-		fmt.Fprintf(w, "rate limit: %.0f\n", rate)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = io.WriteString(w, fmt.Sprintf("rate limit: %.0f\n", rate))
 	})
 
 	// Wrap the whole mux with the Zenmanage middleware.
 	handler := middleware.InjectFlags(zm, mux)
 
+	// Plain HTTP for demo simplicity. Production deployments should either
+	// serve via http.ListenAndServeTLS with real certificates, or terminate
+	// TLS at a reverse proxy/load balancer in front of this server.
 	log.Printf("Listening on %s", addr)
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalf("server: %v", err)
