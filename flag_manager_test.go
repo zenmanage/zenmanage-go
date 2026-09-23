@@ -482,6 +482,68 @@ func TestFlagManagerToleratesUnknownFlagType(t *testing.T) {
 	}
 }
 
+// TestFlagManagerUnknownFlagTypeUsesDefaultsCollection confirms Single()
+// falls back to a DefaultsCollection entry (not just an inline default) when
+// the flag it finds has a type this SDK release doesn't recognize.
+func TestFlagManagerUnknownFlagTypeUsesDefaultsCollection(t *testing.T) {
+	server := startMockRulesServer(t, mixedTypeRulesJSON, nil)
+
+	cfg, err := NewConfigBuilder().
+		WithEnvironmentToken("srv_token").
+		WithAPIEndpoint(server.URL).
+		WithHTTPClient(server.Client()).
+		Build()
+	if err != nil {
+		t.Fatalf("build failed: %v", err)
+	}
+
+	defaults := DefaultsFromMap(map[string]any{"json-flag": "from-collection"})
+	manager := New(cfg).Flags().WithDefaults(defaults)
+
+	flag, err := manager.Single(context.Background(), "json-flag")
+	if err != nil {
+		t.Fatalf("Single() should not error on an unknown flag type, got: %v", err)
+	}
+	if flag.AsString() != "from-collection" {
+		t.Fatalf("expected unknown-typed flag to fall back to the DefaultsCollection value %q, got %q", "from-collection", flag.AsString())
+	}
+}
+
+// TestFlagManagerUnknownFlagTypeWarningDedupesAcrossClones confirms the
+// warned-type dedup state is shared across managers cloned via
+// WithContext/WithDefaults, since the Zenmanage convenience methods
+// (IsEnabled/GetString/GetNumber) clone a fresh FlagManager on every call —
+// without sharing that state, every request would re-log the same warning.
+func TestFlagManagerUnknownFlagTypeWarningDedupesAcrossClones(t *testing.T) {
+	server := startMockRulesServer(t, mixedTypeRulesJSON, nil)
+
+	logger := &capturingLogger{}
+	cfg, err := NewConfigBuilder().
+		WithEnvironmentToken("srv_token").
+		WithAPIEndpoint(server.URL).
+		WithHTTPClient(server.Client()).
+		WithLogger(logger).
+		Build()
+	if err != nil {
+		t.Fatalf("build failed: %v", err)
+	}
+
+	root := New(cfg).Flags()
+
+	// Simulate repeated per-request usage: each lookup clones a fresh
+	// FlagManager via WithContext, the way IsEnabled/GetString/GetNumber do.
+	for i := 0; i < 3; i++ {
+		clone := root.WithContext(SingleContext("user", "u-1", ""))
+		if _, err := clone.Single(context.Background(), "json-flag", "default"); err != nil {
+			t.Fatalf("Single() should not error on an unknown flag type, got: %v", err)
+		}
+	}
+
+	if got := logger.warnCount(); got != 1 {
+		t.Fatalf("expected exactly one warning logged across clones sharing the same root manager, got %d", got)
+	}
+}
+
 func TestFlagManagerManualReportUsagePropagatesErrors(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)

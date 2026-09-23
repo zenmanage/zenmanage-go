@@ -43,33 +43,40 @@ func NewFlagManager(apiClient *APIClient, cache Cache, ruleEngine *RuleEngine, c
 	}
 }
 
-// WithContext returns a new flag manager that shares rules/cache with the receiver but uses a different context.
-func (m *FlagManager) WithContext(ctx Context) *FlagManager {
+// clone builds a new flag manager sharing the receiver's dependencies,
+// warned-types dedup state, and cached rules. It's the shared base for
+// WithContext/WithDefaults, which are called on every request in typical
+// per-request middleware usage, so unlike NewFlagManager it doesn't
+// allocate a fresh warnedTypes map just to immediately replace it.
+func (m *FlagManager) clone() *FlagManager {
 	m.mu.RLock()
 	rules := m.rules
 	m.mu.RUnlock()
-	clone := NewFlagManager(m.apiClient, m.cache, m.ruleEngine, m.cacheTTL, m.logger)
+	clone := &FlagManager{
+		apiClient:   m.apiClient,
+		cache:       m.cache,
+		ruleEngine:  m.ruleEngine,
+		cacheTTL:    m.cacheTTL,
+		logger:      m.logger,
+		warnedTypes: m.warnedTypes,
+	}
+	clone.rules = rules
+	return clone
+}
+
+// WithContext returns a new flag manager that shares rules/cache with the receiver but uses a different context.
+func (m *FlagManager) WithContext(ctx Context) *FlagManager {
+	clone := m.clone()
 	clone.context = &ctx
 	clone.defaults = m.defaults
-	clone.warnedTypes = m.warnedTypes
-	clone.mu.Lock()
-	clone.rules = rules
-	clone.mu.Unlock()
 	return clone
 }
 
 // WithDefaults returns a new flag manager that shares rules/cache with the receiver but uses a different defaults collection.
 func (m *FlagManager) WithDefaults(defaults *DefaultsCollection) *FlagManager {
-	m.mu.RLock()
-	rules := m.rules
-	m.mu.RUnlock()
-	clone := NewFlagManager(m.apiClient, m.cache, m.ruleEngine, m.cacheTTL, m.logger)
+	clone := m.clone()
 	clone.context = m.context
 	clone.defaults = defaults
-	clone.warnedTypes = m.warnedTypes
-	clone.mu.Lock()
-	clone.rules = rules
-	clone.mu.Unlock()
 	return clone
 }
 
