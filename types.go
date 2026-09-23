@@ -14,6 +14,21 @@ const (
 	FlagTypeNumber FlagType = "number"
 )
 
+// isKnownFlagType reports whether t is a primitive type this SDK release
+// knows how to evaluate. A rules payload may contain a flag type added to
+// the API after this SDK release shipped (e.g. "json") — such a flag is
+// skipped/defaulted by the flag manager rather than causing a parse or
+// evaluation failure, so older SDK releases stay forward compatible with
+// new flag types.
+func isKnownFlagType(t FlagType) bool {
+	switch t {
+	case FlagTypeBoolean, FlagTypeString, FlagTypeNumber:
+		return true
+	default:
+		return false
+	}
+}
+
 // ContextValue is a single context value.
 type ContextValue struct {
 	Value string `json:"value"`

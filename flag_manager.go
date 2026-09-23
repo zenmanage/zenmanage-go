@@ -21,44 +21,62 @@ type FlagManager struct {
 	rules    *RulesResponse
 	context  *Context
 	defaults *DefaultsCollection
+
+	// warnedTypes tracks which unrecognized FlagType values have already
+	// been logged, so a flag type this SDK release doesn't know about
+	// (e.g. "json") produces one warning, not one per lookup/evaluation.
+	// It's a pointer shared across every clone derived from the same root
+	// manager (via WithContext/WithDefaults) so the convenience methods on
+	// Zenmanage, which clone a fresh FlagManager per call, still dedupe.
+	warnedTypes *sync.Map
 }
 
 // NewFlagManager creates a flag manager.
 func NewFlagManager(apiClient *APIClient, cache Cache, ruleEngine *RuleEngine, cacheTTL time.Duration, logger Logger) *FlagManager {
 	return &FlagManager{
-		apiClient:  apiClient,
-		cache:      cache,
-		ruleEngine: ruleEngine,
-		cacheTTL:   cacheTTL,
-		logger:     logger,
+		apiClient:   apiClient,
+		cache:       cache,
+		ruleEngine:  ruleEngine,
+		cacheTTL:    cacheTTL,
+		logger:      logger,
+		warnedTypes: &sync.Map{},
 	}
+}
+
+// clone builds a new flag manager sharing the receiver's dependencies,
+// warned-types dedup state, and cached rules. It's the shared base for
+// WithContext/WithDefaults, which are called on every request in typical
+// per-request middleware usage, so unlike NewFlagManager it doesn't
+// allocate a fresh warnedTypes map just to immediately replace it.
+func (m *FlagManager) clone() *FlagManager {
+	m.mu.RLock()
+	rules := m.rules
+	m.mu.RUnlock()
+	clone := &FlagManager{
+		apiClient:   m.apiClient,
+		cache:       m.cache,
+		ruleEngine:  m.ruleEngine,
+		cacheTTL:    m.cacheTTL,
+		logger:      m.logger,
+		warnedTypes: m.warnedTypes,
+	}
+	clone.rules = rules
+	return clone
 }
 
 // WithContext returns a new flag manager that shares rules/cache with the receiver but uses a different context.
 func (m *FlagManager) WithContext(ctx Context) *FlagManager {
-	m.mu.RLock()
-	rules := m.rules
-	m.mu.RUnlock()
-	clone := NewFlagManager(m.apiClient, m.cache, m.ruleEngine, m.cacheTTL, m.logger)
+	clone := m.clone()
 	clone.context = &ctx
 	clone.defaults = m.defaults
-	clone.mu.Lock()
-	clone.rules = rules
-	clone.mu.Unlock()
 	return clone
 }
 
 // WithDefaults returns a new flag manager that shares rules/cache with the receiver but uses a different defaults collection.
 func (m *FlagManager) WithDefaults(defaults *DefaultsCollection) *FlagManager {
-	m.mu.RLock()
-	rules := m.rules
-	m.mu.RUnlock()
-	clone := NewFlagManager(m.apiClient, m.cache, m.ruleEngine, m.cacheTTL, m.logger)
+	clone := m.clone()
 	clone.context = m.context
 	clone.defaults = defaults
-	clone.mu.Lock()
-	clone.rules = rules
-	clone.mu.Unlock()
 	return clone
 }
 
@@ -81,6 +99,10 @@ func (m *FlagManager) All(ctx context.Context) ([]Flag, error) {
 	contextValue := m.getContext()
 	out := make([]Flag, 0, len(rules.Flags))
 	for _, f := range rules.Flags {
+		if !isKnownFlagType(f.Type) {
+			m.warnUnknownFlagType(f.Key, f.Type)
+			continue
+		}
 		flag, err := m.evaluateFlag(f, contextValue)
 		if err != nil {
 			return nil, err
@@ -100,6 +122,15 @@ func (m *FlagManager) Single(ctx context.Context, key string, inlineDefault ...a
 	for _, f := range rules.Flags {
 		if f.Key != key {
 			continue
+		}
+		if !isKnownFlagType(f.Type) {
+			// A flag type this SDK release doesn't recognize yet (e.g. a
+			// newer "json" flag served to an older release) can't be
+			// evaluated meaningfully — degrade to the caller's default
+			// exactly as if the flag were absent, rather than returning a
+			// zero-value/garbage result for an unrecognized type.
+			m.warnUnknownFlagType(f.Key, f.Type)
+			break
 		}
 		flag, err := m.evaluateFlag(f, contextValue)
 		if err != nil {
@@ -221,6 +252,20 @@ func (m *FlagManager) loadRules(ctx context.Context) (RulesResponse, error) {
 	m.rules = &fresh
 	m.mu.Unlock()
 	return fresh, nil
+}
+
+// warnUnknownFlagType logs once (per distinct unrecognized FlagType value,
+// for the lifetime of the root manager and every manager cloned from it via
+// WithContext/WithDefaults) that a flag was skipped because this SDK
+// release doesn't know its type.
+func (m *FlagManager) warnUnknownFlagType(key string, flagType FlagType) {
+	if _, alreadyWarned := m.warnedTypes.LoadOrStore(string(flagType), true); alreadyWarned {
+		return
+	}
+	m.logger.Warn("skipping flag with unrecognized type; falling back to the caller's default", map[string]any{
+		"flag": key,
+		"type": string(flagType),
+	})
 }
 
 func (m *FlagManager) reportUsageAsync(key string, contextValue *Context, defaultValue any) {
