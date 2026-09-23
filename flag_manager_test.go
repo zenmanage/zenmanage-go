@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -382,6 +383,102 @@ func TestFlagManagerManualReportUsage(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for usage report")
+	}
+}
+
+// capturingLogger records every Warn() call so tests can assert an unknown
+// flag type is logged exactly once, not silently swallowed and not spammed.
+type capturingLogger struct {
+	NullLogger
+	mu    sync.Mutex
+	warns []string
+}
+
+func (l *capturingLogger) Warn(message string, _ map[string]any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.warns = append(l.warns, message)
+}
+
+func (l *capturingLogger) warnCount() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return len(l.warns)
+}
+
+// mixedTypeRulesJSON mirrors a rules payload once the API starts serving a
+// json-typed flag alongside the existing boolean/string/number types.
+const mixedTypeRulesJSON = `{"version":"1","flags":[` +
+	`{"version":"1","type":"boolean","key":"bool-flag","name":"bool-flag","target":{"value":{"value":{"boolean":true}}}},` +
+	`{"version":"1","type":"string","key":"string-flag","name":"string-flag","target":{"value":{"value":{"string":"hello"}}}},` +
+	`{"version":"1","type":"number","key":"number-flag","name":"number-flag","target":{"value":{"value":{"number":42}}}},` +
+	`{"version":"1","type":"json","key":"json-flag","name":"json-flag","target":{"value":{"value":{"json":{"nested":{"a":1,"b":[1,2,3]}}}}}}` +
+	`]}`
+
+// TestFlagManagerToleratesUnknownFlagType confirms ZEN-1667: a rules payload
+// containing a flag of a type this SDK release doesn't recognize (e.g. the
+// upcoming "json" type) must not panic, must not error the whole payload,
+// and must not silently resolve to a garbage/wrong value for that flag —
+// looking it up must degrade to the caller's own default, while every other
+// flag in the same payload evaluates normally.
+func TestFlagManagerToleratesUnknownFlagType(t *testing.T) {
+	server := startMockRulesServer(t, mixedTypeRulesJSON, nil)
+
+	logger := &capturingLogger{}
+	cfg, err := NewConfigBuilder().
+		WithEnvironmentToken("srv_token").
+		WithAPIEndpoint(server.URL).
+		WithHTTPClient(server.Client()).
+		WithLogger(logger).
+		Build()
+	if err != nil {
+		t.Fatalf("build failed: %v", err)
+	}
+
+	manager := New(cfg).Flags()
+
+	// The other flags in the same payload must still evaluate correctly.
+	flags, err := manager.All(context.Background())
+	if err != nil {
+		t.Fatalf("All() should not error on a payload containing an unknown flag type: %v", err)
+	}
+	byKey := map[string]Flag{}
+	for _, f := range flags {
+		byKey[f.Key()] = f
+	}
+	if f, ok := byKey["bool-flag"]; !ok || !f.AsBool() {
+		t.Fatalf("expected bool-flag to evaluate to true, got %+v (ok=%v)", f, ok)
+	}
+	if f, ok := byKey["string-flag"]; !ok || f.AsString() != "hello" {
+		t.Fatalf("expected string-flag to evaluate to %q, got %+v (ok=%v)", "hello", f, ok)
+	}
+	if f, ok := byKey["number-flag"]; !ok || f.AsNumber() != 42 {
+		t.Fatalf("expected number-flag to evaluate to 42, got %+v (ok=%v)", f, ok)
+	}
+
+	// Looking up the unknown-typed flag directly must resolve to the
+	// caller's own default, not panic, not error, and not a garbage value
+	// (e.g. an empty string coerced from a mis-parsed value wrapper).
+	flag, err := manager.Single(context.Background(), "json-flag", "caller-default")
+	if err != nil {
+		t.Fatalf("Single() should not error on an unknown flag type, got: %v", err)
+	}
+	if flag.AsString() != "caller-default" {
+		t.Fatalf("expected unknown-typed flag to resolve to the caller's default %q, got %q", "caller-default", flag.AsString())
+	}
+
+	numFlag, err := manager.Single(context.Background(), "json-flag", 99.5)
+	if err != nil {
+		t.Fatalf("Single() should not error on an unknown flag type, got: %v", err)
+	}
+	if numFlag.AsNumber() != 99.5 {
+		t.Fatalf("expected unknown-typed flag to resolve to the caller's numeric default %v, got %v", 99.5, numFlag.AsNumber())
+	}
+
+	// A single unknown flag type in the payload should produce exactly one
+	// warning log, not one per lookup/evaluation.
+	if got := logger.warnCount(); got != 1 {
+		t.Fatalf("expected exactly one warning logged for the unknown flag type, got %d", got)
 	}
 }
 

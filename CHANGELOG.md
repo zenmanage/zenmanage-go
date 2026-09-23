@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 The format follows Keep a Changelog and Semantic Versioning.
 
+## [Unreleased]
+
+### Fixed
+
+- `FlagManager.Single()`/`GetString()`/`GetNumber()` silently returned a zero-value result (empty string, `0`) instead of the caller's own default when a flag's `type` wasn't one of `boolean`/`string`/`number` — the value wrapper (e.g. an upcoming `json`-typed flag's `{"json": ...}` payload) didn't populate any of the known value fields, so the coerced value came back empty rather than falling back to the caller's default. `Single()` and `All()` now treat a flag with an unrecognized type as if it were absent (falling back to the caller's inline default or `DefaultsCollection` entry, and logging a warning once) instead of returning a wrong/garbage value. This keeps the SDK forward compatible with new flag types the API adds before this SDK has a release that understands them (ZEN-1667).
+
 ## [1.0.0] - 2026-09-05
 
 ### Added
