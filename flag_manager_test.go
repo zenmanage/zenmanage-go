@@ -274,7 +274,7 @@ func TestFlagManagerEvaluatesRulesAndRollout(t *testing.T) {
 	on := "on"
 	fallback := "off"
 
-	manager.rules = &RulesResponse{Version: "1", Flags: []FlagData{
+	manager.rules = newFlagIndex(RulesResponse{Version: "1", Flags: []FlagData{
 		{
 			Version: "1",
 			Type:    FlagTypeBoolean,
@@ -312,7 +312,7 @@ func TestFlagManagerEvaluatesRulesAndRollout(t *testing.T) {
 				}{String: &on}}},
 			},
 		},
-	}}
+	}})
 
 	ctx := NewContext("user", "u-1", "", []Attribute{NewAttribute("country", []string{"US"})})
 	fm := manager.WithContext(ctx)
@@ -332,7 +332,7 @@ func TestFlagManagerRefreshRulesClearsCache(t *testing.T) {
 	cfg, _ := NewConfigBuilder().WithEnvironmentToken("srv_token").Build()
 	manager := New(cfg).Flags()
 	_ = manager.cache.Set(rulesCacheKey, `{"version":"1","flags":[]}`, time.Minute)
-	manager.rules = &RulesResponse{Version: "1", Flags: []FlagData{}}
+	manager.rules = newFlagIndex(RulesResponse{Version: "1", Flags: []FlagData{}})
 
 	server := startMockRulesServer(t, `{"version":"2","flags":[]}`, nil)
 
@@ -346,8 +346,43 @@ func TestFlagManagerRefreshRulesClearsCache(t *testing.T) {
 	if err := manager.RefreshRules(context.Background()); err != nil {
 		t.Fatalf("refresh failed: %v", err)
 	}
-	if manager.rules == nil || manager.rules.Version != "2" {
+	if manager.rules == nil || manager.rules.rules.Version != "2" {
 		t.Fatalf("expected refreshed rules")
+	}
+}
+
+// TestFlagManagerLoadRulesCorruptedCacheFallsBackToFetch confirms a
+// corrupted cache entry (e.g. from a partial write or a format change)
+// logs a warning with the real unmarshal error and falls back to fetching
+// fresh rules from the API, instead of panicking on a nil error dereference
+// (loadRules previously referenced the outer cache.Get error, which is
+// always nil at that point, rather than the inner json.Unmarshal error).
+func TestFlagManagerLoadRulesCorruptedCacheFallsBackToFetch(t *testing.T) {
+	server := startMockRulesServer(t, `{"version":"2","flags":[]}`, nil)
+
+	logger := &capturingLogger{}
+	cfg, err := NewConfigBuilder().
+		WithEnvironmentToken("srv_token").
+		WithAPIEndpoint(server.URL).
+		WithHTTPClient(server.Client()).
+		WithLogger(logger).
+		Build()
+	if err != nil {
+		t.Fatalf("build failed: %v", err)
+	}
+
+	manager := New(cfg).Flags()
+	_ = manager.cache.Set(rulesCacheKey, "not valid json", time.Minute)
+
+	flags, err := manager.All(context.Background())
+	if err != nil {
+		t.Fatalf("expected fallback to API fetch, got error: %v", err)
+	}
+	if len(flags) != 0 {
+		t.Fatalf("expected empty flag set from fallback rules, got %d", len(flags))
+	}
+	if got := logger.warnCount(); got != 1 {
+		t.Fatalf("expected exactly one warning logged for the corrupted cache entry, got %d", got)
 	}
 }
 
