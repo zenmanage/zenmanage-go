@@ -16,6 +16,7 @@ func TestRuleEngineEqualsAndIn(t *testing.T) {
 				Boolean *bool    `json:"boolean,omitempty"`
 				String  *string  `json:"string,omitempty"`
 				Number  *float64 `json:"number,omitempty"`
+				JSON    any      `json:"json,omitempty"`
 			}{String: &str}},
 		},
 	}

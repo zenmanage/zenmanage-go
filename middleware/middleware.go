@@ -3,7 +3,7 @@
 // Middleware injects a [FlagManager] scoped to each request into the request
 // context. Downstream handlers retrieve it with [FlagManagerFromContext] and
 // call flag evaluation methods directly, or use the top-level helpers
-// [IsEnabled], [GetString], and [GetNumber].
+// [IsEnabled], [GetString], [GetNumber], and [GetJSON].
 //
 // Example — basic usage:
 //
@@ -93,4 +93,17 @@ func GetNumber(ctx context.Context, key string, defaultValue float64) (float64, 
 		return defaultValue, err
 	}
 	return flag.AsNumber(), nil
+}
+
+// GetJSON evaluates a json flag from the context-injected flag manager.
+func GetJSON(ctx context.Context, key string, defaultValue any) (any, error) {
+	fm := FlagManagerFromContext(ctx)
+	if fm == nil {
+		return defaultValue, &zenmanage.EvaluationError{Message: "no flag manager in context; use InjectFlags middleware"}
+	}
+	flag, err := fm.Single(ctx, key, defaultValue)
+	if err != nil {
+		return defaultValue, err
+	}
+	return flag.AsJSON(), nil
 }

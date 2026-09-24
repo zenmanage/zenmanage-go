@@ -78,6 +78,9 @@ color, err := client.GetString(ctx, "button-color", "user-123", "blue")
 
 // Numeric flag
 limit, err := client.GetNumber(ctx, "rate-limit", "user-123", 100)
+
+// JSON flag — decodes to map[string]any for a JSON object, []any for an array
+theme, err := client.GetJSON(ctx, "theme-config", "user-123", map[string]any{"mode": "light"})
 ~~~
 
 Pass an empty string for `userID` to evaluate without user context (e.g. kill-switch flags).
@@ -110,6 +113,20 @@ ctx := zenmanage.NewContext(
 flag, err := client.Flags().
     WithContext(ctx).
     Single(context.Background(), "beta-program", false)
+~~~
+
+### JSON Configuration
+
+~~~go
+// Structured configuration values (objects and arrays alike decode to map[string]any/[]any)
+flag, err := client.Flags().Single(context.Background(), "theme-config", map[string]any{
+    "mode":   "light",
+    "accent": "#4f46e5",
+})
+theme := flag.AsJSON()
+
+rolloutFlag, err := client.Flags().Single(context.Background(), "rollout-plan", []any{})
+plan := rolloutFlag.AsJSON()
 ~~~
 
 ### Percentage Rollouts
@@ -161,6 +178,25 @@ evaluation path (for example, after evaluating a flag some other way):
 err := client.Flags().ReportUsage(context.Background(), "new-dashboard", false)
 ~~~
 
+## Value Types & Cross-Type Coercion
+
+A flag's `Type()` is one of `FlagTypeBoolean`, `FlagTypeString`, `FlagTypeNumber`, or `FlagTypeJSON`. Each type has a matching accessor (`AsBool()`, `AsString()`, `AsNumber()`, `AsJSON()`), plus `IsEnabled()` for boolean flags specifically.
+
+**`AsJSON()`** returns the decoded value as `map[string]any` for a JSON object or `[]any` for a JSON array — matching how the rest of the SDK unmarshals API responses via `encoding/json`.
+
+**Calling a mismatched accessor never returns a lossy conversion of another type's value — it falls back to that accessor's own safe zero value:**
+
+| Flag type ↓ \ Called → | `AsBool()` | `AsString()` | `AsNumber()` | `AsJSON()` |
+|---|---|---|---|---|
+| `boolean` | the bool | `"true"`/`"false"` | `1`/`0` | `map[string]any{}` |
+| `string` | truthy check (`""`/`"false"`/`"0"` are false) | the string | parsed number, or `0` | `map[string]any{}` |
+| `number` | `true` unless `0` | formatted number | the number | `map[string]any{}` |
+| `json` | `false` | `""` | `0` | the decoded `map[string]any`/`[]any` |
+
+`AsJSON()` on a boolean/string/number flag, or on a json flag with no value, returns an empty `map[string]any{}` rather than attempting to wrap or stringify that value.
+
+**Default values** passed to `Single(key, default)` are typed from the Go value itself: a `map[string]any` or `[]any` default becomes a `json`-typed flag (not stringified), so `AsJSON()` on a missing flag with such a default returns it unchanged. Other composite types (custom structs, `map[string]string`, typed slices, etc.) aren't recognized as json defaults — pass `map[string]any`/`[]any` explicitly.
+
 ## Configuration
 
 Build configuration with fluent helpers:
@@ -189,6 +225,7 @@ Or load from environment with ConfigFromEnvironment using:
 See [examples/README.md](examples/README.md) for parity samples:
 
 - simple_flags.go
+- json_flags.go
 - context_based_flags.go
 - percentage_rollouts.go
 - ab_testing.go
@@ -209,6 +246,7 @@ import "github.com/zenmanage/zenmanage-go/middleware"
 mux := http.NewServeMux()
 mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
     enabled, err := middleware.IsEnabled(r.Context(), "new-feature")
+    config, err := middleware.GetJSON(r.Context(), "feature-config", map[string]any{})
     ...
 })
 http.ListenAndServe(":8080", middleware.InjectFlags(zmClient, mux))

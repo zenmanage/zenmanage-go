@@ -18,7 +18,8 @@ func buildPreloadedClient(t *testing.T) *zenmanage.Zenmanage {
 
 	const rulesJSON = `{"version":"1","flags":[` +
 		`{"version":"1","type":"boolean","key":"feat","name":"Feature","target":{"value":{"value":{"boolean":true}}},"rules":[]},` +
-		`{"version":"1","type":"string","key":"color","name":"Color","target":{"value":{"value":{"string":"hello"}}},"rules":[]}` +
+		`{"version":"1","type":"string","key":"color","name":"Color","target":{"value":{"value":{"string":"hello"}}},"rules":[]},` +
+		`{"version":"1","type":"json","key":"config","name":"Config","target":{"value":{"value":{"json":{"mode":"dark"}}}},"rules":[]}` +
 		`]}`
 
 	var srv *httptest.Server
@@ -163,6 +164,38 @@ func TestGetNumber_NoManager(t *testing.T) {
 	}
 	if v != 9.9 {
 		t.Fatalf("expected 9.9, got %v", v)
+	}
+}
+
+func TestGetJSON_ViaMWContext(t *testing.T) {
+	client := buildPreloadedClient(t)
+
+	var v any
+	var evalErr error
+	handler := middleware.InjectFlags(client, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		v, evalErr = middleware.GetJSON(r.Context(), "config", map[string]any{})
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	if evalErr != nil {
+		t.Fatalf("unexpected error: %v", evalErr)
+	}
+	obj, ok := v.(map[string]any)
+	if !ok || obj["mode"] != "dark" {
+		t.Fatalf("expected decoded config map, got %+v", v)
+	}
+}
+
+func TestGetJSON_NoManager(t *testing.T) {
+	fallback := map[string]any{"default": true}
+	v, err := middleware.GetJSON(context.Background(), "config", fallback)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if got, ok := v.(map[string]any); !ok || got["default"] != true {
+		t.Fatalf("expected fallback default, got %+v", v)
 	}
 }
 

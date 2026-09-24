@@ -12,7 +12,8 @@ const convenienceRulesJSON = `{"version":"1","flags":[` +
 	`{"version":"1","type":"boolean","key":"enabled-flag","name":"Enabled","target":{"value":{"value":{"boolean":true}}},"rules":[]},` +
 	`{"version":"1","type":"boolean","key":"disabled-flag","name":"Disabled","target":{"value":{"value":{"boolean":false}}},"rules":[]},` +
 	`{"version":"1","type":"string","key":"string-flag","name":"Str","target":{"value":{"value":{"string":"variant-b"}}},"rules":[]},` +
-	`{"version":"1","type":"number","key":"number-flag","name":"Num","target":{"value":{"value":{"number":42.5}}},"rules":[]}` +
+	`{"version":"1","type":"number","key":"number-flag","name":"Num","target":{"value":{"value":{"number":42.5}}},"rules":[]},` +
+	`{"version":"1","type":"json","key":"json-flag","name":"JSON","target":{"value":{"value":{"json":{"mode":"dark"}}}},"rules":[]}` +
 	`]}`
 
 func newConvenienceClient(t *testing.T) *Zenmanage {
@@ -99,5 +100,28 @@ func TestGetNumberConvenience(t *testing.T) {
 	n, err = client.GetNumber(context.Background(), "missing-flag", "user-1", 99.9)
 	if err != nil || n != 99.9 {
 		t.Fatalf("expected default 99.9: err=%v n=%v", err, n)
+	}
+}
+
+func TestGetJSONConvenience(t *testing.T) {
+	client := newConvenienceClient(t)
+
+	v, err := client.GetJSON(context.Background(), "json-flag", "user-1", map[string]any{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	obj, ok := v.(map[string]any)
+	if !ok || obj["mode"] != "dark" {
+		t.Fatalf("expected decoded config map, got %+v", v)
+	}
+
+	fallback := map[string]any{"default": true}
+	v, err = client.GetJSON(context.Background(), "missing-flag", "user-1", fallback)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := v.(map[string]any)
+	if !ok || got["default"] != true {
+		t.Fatalf("expected fallback default, got %+v", v)
 	}
 }

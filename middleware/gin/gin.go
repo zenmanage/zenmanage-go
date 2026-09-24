@@ -97,3 +97,17 @@ func GetNumber(c *gin.Context, key string, defaultValue float64) (float64, error
 	}
 	return flag.AsNumber(), nil
 }
+
+// GetJSON evaluates a json flag using the flag manager stored in the Gin
+// context.
+func GetJSON(c *gin.Context, key string, defaultValue any) (any, error) {
+	fm := FlagManagerFromContext(c)
+	if fm == nil {
+		return defaultValue, &zenmanage.EvaluationError{Message: "no flag manager in gin context; use InjectFlags middleware"}
+	}
+	flag, err := fm.Single(c.Request.Context(), key, defaultValue)
+	if err != nil {
+		return defaultValue, err
+	}
+	return flag.AsJSON(), nil
+}

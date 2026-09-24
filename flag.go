@@ -52,6 +52,12 @@ func newDefaultFlag(key string, value any) Flag {
 		data.Type = FlagTypeNumber
 		f := float64(v)
 		envelope.Value.Number = &f
+	case map[string]any:
+		data.Type = FlagTypeJSON
+		envelope.Value.JSON = v
+	case []any:
+		data.Type = FlagTypeJSON
+		envelope.Value.JSON = v
 	default:
 		// Preserve compatibility by coercing unknown defaults to string.
 		s := ""
@@ -101,6 +107,11 @@ func (f Flag) Value() any {
 			return *f.target.Value.Value.Number
 		}
 		return float64(0)
+	case FlagTypeJSON:
+		if f.target.Value.Value.JSON != nil {
+			return f.target.Value.Value.JSON
+		}
+		return map[string]any{}
 	default:
 		if f.target.Value.Value.String != nil {
 			return *f.target.Value.Value.String
@@ -158,6 +169,23 @@ func (f Flag) AsNumber() float64 {
 		return v
 	default:
 		return 0
+	}
+}
+
+// AsJSON coerces the value to a JSON-decoded structure: a map[string]any for
+// a JSON object, or a []any for a JSON array. It only recognizes a
+// json-typed flag's own value — calling it on a boolean/string/number flag
+// (or on a json flag with no value) returns an empty map[string]any, the
+// same safe zero-value fallback AsBool/AsString/AsNumber use for a
+// mismatched type, rather than attempting a lossy conversion.
+func (f Flag) AsJSON() any {
+	switch v := f.Value().(type) {
+	case map[string]any:
+		return v
+	case []any:
+		return v
+	default:
+		return map[string]any{}
 	}
 }
 

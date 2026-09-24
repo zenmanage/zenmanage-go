@@ -73,3 +73,19 @@ func (z *Zenmanage) GetNumber(ctx context.Context, key, userID string, defaultVa
 	}
 	return flag.AsNumber(), nil
 }
+
+// GetJSON returns the structured (map[string]any or []any) value of a flag
+// for the given user ID. defaultValue is returned when the flag is not
+// found.
+func (z *Zenmanage) GetJSON(ctx context.Context, key, userID string, defaultValue any) (any, error) {
+	fm := z.flagManager
+	if userID != "" {
+		c := SingleContext("user", userID, "")
+		fm = fm.WithContext(c)
+	}
+	flag, err := fm.Single(ctx, key, defaultValue)
+	if err != nil {
+		return defaultValue, err
+	}
+	return flag.AsJSON(), nil
+}
