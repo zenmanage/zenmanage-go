@@ -265,8 +265,14 @@ func TestDefaultFlagFloat32AndInt64(t *testing.T) {
 	if f := newDefaultFlag("a", float64(3.14)); f.Type() != FlagTypeNumber {
 		t.Fatalf("expected number type for float64")
 	}
-	// unknown type should default to string
-	if f := newDefaultFlag("a", []int{1, 2}); f.Type() != FlagTypeString {
+	// a concretely-typed slice default (not just []any) is typed as json,
+	// not stringified (ZEN-1671).
+	if f := newDefaultFlag("a", []int{1, 2}); f.Type() != FlagTypeJSON {
+		t.Fatalf("expected json type for a typed slice default")
+	}
+	// a value with no sensible mapping (not a bool/string/number/map/slice)
+	// still falls back to the pre-existing string coercion.
+	if f := newDefaultFlag("a", struct{ X int }{X: 1}); f.Type() != FlagTypeString {
 		t.Fatalf("expected string for unknown type")
 	}
 }

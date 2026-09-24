@@ -107,4 +107,25 @@ func TestDefaultFlagTypeInference(t *testing.T) {
 	if f := newDefaultFlag("a", []any{1, 2}); f.Type() != FlagTypeJSON {
 		t.Fatalf("expected json default type for a slice default")
 	}
+	// A concretely-typed map/slice (not exactly map[string]any/[]any) must
+	// still be typed as json and preserved unchanged, not discarded to an
+	// empty string/map — GetJSON()/AsJSON() must hand the caller back their
+	// own default value, whatever its concrete Go type.
+	typedMapDefault := map[string]string{"mode": "dark"}
+	f := newDefaultFlag("a", typedMapDefault)
+	if f.Type() != FlagTypeJSON {
+		t.Fatalf("expected json default type for a map[string]string default")
+	}
+	if got, ok := f.AsJSON().(map[string]string); !ok || !reflect.DeepEqual(got, typedMapDefault) {
+		t.Fatalf("expected AsJSON() to return the typed map default unchanged, got %+v", f.AsJSON())
+	}
+
+	typedSliceDefault := []int{1, 2, 3}
+	f = newDefaultFlag("a", typedSliceDefault)
+	if f.Type() != FlagTypeJSON {
+		t.Fatalf("expected json default type for a []int default")
+	}
+	if got, ok := f.AsJSON().([]int); !ok || !reflect.DeepEqual(got, typedSliceDefault) {
+		t.Fatalf("expected AsJSON() to return the typed slice default unchanged, got %+v", f.AsJSON())
+	}
 }

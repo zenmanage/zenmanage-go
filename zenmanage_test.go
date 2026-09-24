@@ -125,3 +125,20 @@ func TestGetJSONConvenience(t *testing.T) {
 		t.Fatalf("expected fallback default, got %+v", v)
 	}
 }
+
+// TestGetJSONConvenienceTypedDefault confirms GetJSON preserves a
+// concretely-typed map/slice default (not just map[string]any/[]any)
+// unchanged when the flag is missing, rather than silently discarding it.
+func TestGetJSONConvenienceTypedDefault(t *testing.T) {
+	client := newConvenienceClient(t)
+
+	typedDefault := map[string]string{"mode": "dark"}
+	v, err := client.GetJSON(context.Background(), "missing-flag", "user-1", typedDefault)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := v.(map[string]string)
+	if !ok || got["mode"] != "dark" {
+		t.Fatalf("expected the typed map default to be returned unchanged, got %+v (%T)", v, v)
+	}
+}
