@@ -245,14 +245,15 @@ func (m *FlagManager) loadRules(ctx context.Context) (*flagIndex, error) {
 
 	if raw, found, err := m.cache.Get(rulesCacheKey); err == nil && found {
 		var cached RulesResponse
-		if err := json.Unmarshal([]byte(raw), &cached); err == nil {
+		unmarshalErr := json.Unmarshal([]byte(raw), &cached)
+		if unmarshalErr == nil {
 			idx := newFlagIndex(cached)
 			m.mu.Lock()
 			m.rules = idx
 			m.mu.Unlock()
 			return idx, nil
 		}
-		m.logger.Warn("failed to decode cached rules", map[string]any{"error": err.Error()})
+		m.logger.Warn("failed to decode cached rules", map[string]any{"error": unmarshalErr.Error()})
 	}
 
 	fresh, err := m.apiClient.FetchRules(ctx)

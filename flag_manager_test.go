@@ -351,6 +351,41 @@ func TestFlagManagerRefreshRulesClearsCache(t *testing.T) {
 	}
 }
 
+// TestFlagManagerLoadRulesCorruptedCacheFallsBackToFetch confirms a
+// corrupted cache entry (e.g. from a partial write or a format change)
+// logs a warning with the real unmarshal error and falls back to fetching
+// fresh rules from the API, instead of panicking on a nil error dereference
+// (loadRules previously referenced the outer cache.Get error, which is
+// always nil at that point, rather than the inner json.Unmarshal error).
+func TestFlagManagerLoadRulesCorruptedCacheFallsBackToFetch(t *testing.T) {
+	server := startMockRulesServer(t, `{"version":"2","flags":[]}`, nil)
+
+	logger := &capturingLogger{}
+	cfg, err := NewConfigBuilder().
+		WithEnvironmentToken("srv_token").
+		WithAPIEndpoint(server.URL).
+		WithHTTPClient(server.Client()).
+		WithLogger(logger).
+		Build()
+	if err != nil {
+		t.Fatalf("build failed: %v", err)
+	}
+
+	manager := New(cfg).Flags()
+	_ = manager.cache.Set(rulesCacheKey, "not valid json", time.Minute)
+
+	flags, err := manager.All(context.Background())
+	if err != nil {
+		t.Fatalf("expected fallback to API fetch, got error: %v", err)
+	}
+	if len(flags) != 0 {
+		t.Fatalf("expected empty flag set from fallback rules, got %d", len(flags))
+	}
+	if got := logger.warnCount(); got != 1 {
+		t.Fatalf("expected exactly one warning logged for the corrupted cache entry, got %d", got)
+	}
+}
+
 func TestFlagManagerManualReportUsage(t *testing.T) {
 	received := make(chan http.Header, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
