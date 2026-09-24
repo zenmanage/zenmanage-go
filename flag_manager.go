@@ -9,6 +9,27 @@ import (
 
 const rulesCacheKey = "zenmanage_rules"
 
+// flagIndex pairs a loaded RulesResponse with a key->FlagData lookup map
+// built once from it, so repeated Single() calls against the same loaded
+// rules don't each re-scan the flag list. On duplicate keys within a
+// payload, the first occurrence wins, matching the previous linear-scan
+// behavior. Both fields are immutable after construction, so a *flagIndex
+// can be shared across FlagManager clones (see clone()) without copying.
+type flagIndex struct {
+	rules RulesResponse
+	byKey map[string]FlagData
+}
+
+func newFlagIndex(rules RulesResponse) *flagIndex {
+	byKey := make(map[string]FlagData, len(rules.Flags))
+	for _, f := range rules.Flags {
+		if _, exists := byKey[f.Key]; !exists {
+			byKey[f.Key] = f
+		}
+	}
+	return &flagIndex{rules: rules, byKey: byKey}
+}
+
 // FlagManager handles rule loading and flag evaluation.
 type FlagManager struct {
 	apiClient  *APIClient
@@ -18,7 +39,7 @@ type FlagManager struct {
 	logger     Logger
 
 	mu       sync.RWMutex
-	rules    *RulesResponse
+	rules    *flagIndex
 	context  *Context
 	defaults *DefaultsCollection
 
@@ -92,13 +113,13 @@ func (m *FlagManager) RefreshRules(ctx context.Context) error {
 
 // All returns all evaluated flags.
 func (m *FlagManager) All(ctx context.Context) ([]Flag, error) {
-	rules, err := m.loadRules(ctx)
+	idx, err := m.loadRules(ctx)
 	if err != nil {
 		return nil, err
 	}
 	contextValue := m.getContext()
-	out := make([]Flag, 0, len(rules.Flags))
-	for _, f := range rules.Flags {
+	out := make([]Flag, 0, len(idx.rules.Flags))
+	for _, f := range idx.rules.Flags {
 		if !isKnownFlagType(f.Type) {
 			m.warnUnknownFlagType(f.Key, f.Type)
 			continue
@@ -114,15 +135,12 @@ func (m *FlagManager) All(ctx context.Context) ([]Flag, error) {
 
 // Single returns one evaluated flag by key.
 func (m *FlagManager) Single(ctx context.Context, key string, inlineDefault ...any) (Flag, error) {
-	rules, err := m.loadRules(ctx)
+	idx, err := m.loadRules(ctx)
 	if err != nil {
 		return Flag{}, err
 	}
 	contextValue := m.getContext()
-	for _, f := range rules.Flags {
-		if f.Key != key {
-			continue
-		}
+	if f, ok := idx.byKey[key]; ok {
 		if !isKnownFlagType(f.Type) {
 			// A flag type this SDK release doesn't recognize yet (e.g. a
 			// newer "json" flag served to an older release) can't be
@@ -130,14 +148,14 @@ func (m *FlagManager) Single(ctx context.Context, key string, inlineDefault ...a
 			// exactly as if the flag were absent, rather than returning a
 			// zero-value/garbage result for an unrecognized type.
 			m.warnUnknownFlagType(f.Key, f.Type)
-			break
+		} else {
+			flag, err := m.evaluateFlag(f, contextValue)
+			if err != nil {
+				return Flag{}, err
+			}
+			m.reportUsageAsync(key, contextValue, m.resolveEffectiveDefault(key, inlineDefault...))
+			return flag, nil
 		}
-		flag, err := m.evaluateFlag(f, contextValue)
-		if err != nil {
-			return Flag{}, err
-		}
-		m.reportUsageAsync(key, contextValue, m.resolveEffectiveDefault(key, inlineDefault...))
-		return flag, nil
 	}
 
 	if len(inlineDefault) > 0 {
@@ -216,29 +234,30 @@ func (m *FlagManager) evaluateFlag(data FlagData, ctx *Context) (Flag, error) {
 	return newFlag(data, activeTarget, activeRules), nil
 }
 
-func (m *FlagManager) loadRules(ctx context.Context) (RulesResponse, error) {
+func (m *FlagManager) loadRules(ctx context.Context) (*flagIndex, error) {
 	m.mu.RLock()
 	if m.rules != nil {
-		cached := *m.rules
+		idx := m.rules
 		m.mu.RUnlock()
-		return cached, nil
+		return idx, nil
 	}
 	m.mu.RUnlock()
 
 	if raw, found, err := m.cache.Get(rulesCacheKey); err == nil && found {
 		var cached RulesResponse
 		if err := json.Unmarshal([]byte(raw), &cached); err == nil {
+			idx := newFlagIndex(cached)
 			m.mu.Lock()
-			m.rules = &cached
+			m.rules = idx
 			m.mu.Unlock()
-			return cached, nil
+			return idx, nil
 		}
 		m.logger.Warn("failed to decode cached rules", map[string]any{"error": err.Error()})
 	}
 
 	fresh, err := m.apiClient.FetchRules(ctx)
 	if err != nil {
-		return RulesResponse{}, err
+		return nil, err
 	}
 
 	serialized, err := json.Marshal(fresh)
@@ -248,10 +267,11 @@ func (m *FlagManager) loadRules(ctx context.Context) (RulesResponse, error) {
 		}
 	}
 
+	idx := newFlagIndex(fresh)
 	m.mu.Lock()
-	m.rules = &fresh
+	m.rules = idx
 	m.mu.Unlock()
-	return fresh, nil
+	return idx, nil
 }
 
 // warnUnknownFlagType logs once (per distinct unrecognized FlagType value,

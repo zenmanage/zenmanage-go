@@ -372,17 +372,82 @@ func TestFlagManagerAll(t *testing.T) {
 	manager := New(cfg).Flags()
 
 	b := true
-	manager.rules = &RulesResponse{Version: "1", Flags: []FlagData{
+	manager.rules = newFlagIndex(RulesResponse{Version: "1", Flags: []FlagData{
 		{Version: "1", Type: FlagTypeBoolean, Key: "a", Name: "A", Target: Target{Value: ValueEnvelope{Value: struct {
 			Boolean *bool    `json:"boolean,omitempty"`
 			String  *string  `json:"string,omitempty"`
 			Number  *float64 `json:"number,omitempty"`
 		}{Boolean: &b}}}},
-	}}
+	}})
 
 	flags, err := manager.All(context.Background())
 	if err != nil || len(flags) != 1 || flags[0].Key() != "a" {
 		t.Fatalf("expected all flags, got %v %v", len(flags), err)
+	}
+}
+
+// TestFlagManagerAllPreservesPayloadOrder guards against the flag-lookup
+// index (added to make Single() O(1) instead of linear-scanning) changing
+// All()'s iteration order, since map iteration order is unspecified in Go.
+// All() must still walk the original rules.Flags slice, not the index.
+func TestFlagManagerAllPreservesPayloadOrder(t *testing.T) {
+	cfg, _ := NewConfigBuilder().WithEnvironmentToken("srv_token").Build()
+	manager := New(cfg).Flags()
+
+	b := true
+	keys := []string{"z-flag", "a-flag", "m-flag", "b-flag", "y-flag"}
+	flagsData := make([]FlagData, len(keys))
+	for i, k := range keys {
+		flagsData[i] = FlagData{Version: "1", Type: FlagTypeBoolean, Key: k, Name: k, Target: Target{Value: ValueEnvelope{Value: struct {
+			Boolean *bool    `json:"boolean,omitempty"`
+			String  *string  `json:"string,omitempty"`
+			Number  *float64 `json:"number,omitempty"`
+		}{Boolean: &b}}}}
+	}
+	manager.rules = newFlagIndex(RulesResponse{Version: "1", Flags: flagsData})
+
+	flags, err := manager.All(context.Background())
+	if err != nil {
+		t.Fatalf("all failed: %v", err)
+	}
+	if len(flags) != len(keys) {
+		t.Fatalf("expected %d flags, got %d", len(keys), len(flags))
+	}
+	for i, k := range keys {
+		if flags[i].Key() != k {
+			t.Fatalf("expected flag order to match payload order, got %v at index %d, expected %v", flags[i].Key(), i, k)
+		}
+	}
+}
+
+// TestFlagManagerSingleDuplicateKeyFirstWins guards the flag-lookup index's
+// documented first-match-wins behavior for duplicate keys within a single
+// rules payload, matching the pre-index linear-scan behavior of Single().
+func TestFlagManagerSingleDuplicateKeyFirstWins(t *testing.T) {
+	cfg, _ := NewConfigBuilder().WithEnvironmentToken("srv_token").Build()
+	manager := New(cfg).Flags()
+
+	first := true
+	second := false
+	manager.rules = newFlagIndex(RulesResponse{Version: "1", Flags: []FlagData{
+		{Version: "1", Type: FlagTypeBoolean, Key: "dup", Name: "first", Target: Target{Value: ValueEnvelope{Value: struct {
+			Boolean *bool    `json:"boolean,omitempty"`
+			String  *string  `json:"string,omitempty"`
+			Number  *float64 `json:"number,omitempty"`
+		}{Boolean: &first}}}},
+		{Version: "1", Type: FlagTypeBoolean, Key: "dup", Name: "second", Target: Target{Value: ValueEnvelope{Value: struct {
+			Boolean *bool    `json:"boolean,omitempty"`
+			String  *string  `json:"string,omitempty"`
+			Number  *float64 `json:"number,omitempty"`
+		}{Boolean: &second}}}},
+	}})
+
+	flag, err := manager.Single(context.Background(), "dup")
+	if err != nil {
+		t.Fatalf("single failed: %v", err)
+	}
+	if !flag.AsBool() {
+		t.Fatalf("expected first occurrence of duplicate key to win, got second")
 	}
 }
 
@@ -486,7 +551,7 @@ func TestFlagManagerLoadRulesCacheHit(t *testing.T) {
 func TestFlagManagerSingleMissingNoDefault(t *testing.T) {
 	cfg, _ := NewConfigBuilder().WithEnvironmentToken("srv_token").Build()
 	manager := New(cfg).Flags()
-	manager.rules = &RulesResponse{Version: "1", Flags: []FlagData{}}
+	manager.rules = newFlagIndex(RulesResponse{Version: "1", Flags: []FlagData{}})
 
 	_, err := manager.Single(context.Background(), "ghost")
 	if err == nil {

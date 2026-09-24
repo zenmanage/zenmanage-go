@@ -274,7 +274,7 @@ func TestFlagManagerEvaluatesRulesAndRollout(t *testing.T) {
 	on := "on"
 	fallback := "off"
 
-	manager.rules = &RulesResponse{Version: "1", Flags: []FlagData{
+	manager.rules = newFlagIndex(RulesResponse{Version: "1", Flags: []FlagData{
 		{
 			Version: "1",
 			Type:    FlagTypeBoolean,
@@ -312,7 +312,7 @@ func TestFlagManagerEvaluatesRulesAndRollout(t *testing.T) {
 				}{String: &on}}},
 			},
 		},
-	}}
+	}})
 
 	ctx := NewContext("user", "u-1", "", []Attribute{NewAttribute("country", []string{"US"})})
 	fm := manager.WithContext(ctx)
@@ -332,7 +332,7 @@ func TestFlagManagerRefreshRulesClearsCache(t *testing.T) {
 	cfg, _ := NewConfigBuilder().WithEnvironmentToken("srv_token").Build()
 	manager := New(cfg).Flags()
 	_ = manager.cache.Set(rulesCacheKey, `{"version":"1","flags":[]}`, time.Minute)
-	manager.rules = &RulesResponse{Version: "1", Flags: []FlagData{}}
+	manager.rules = newFlagIndex(RulesResponse{Version: "1", Flags: []FlagData{}})
 
 	server := startMockRulesServer(t, `{"version":"2","flags":[]}`, nil)
 
@@ -346,7 +346,7 @@ func TestFlagManagerRefreshRulesClearsCache(t *testing.T) {
 	if err := manager.RefreshRules(context.Background()); err != nil {
 		t.Fatalf("refresh failed: %v", err)
 	}
-	if manager.rules == nil || manager.rules.Version != "2" {
+	if manager.rules == nil || manager.rules.rules.Version != "2" {
 		t.Fatalf("expected refreshed rules")
 	}
 }
