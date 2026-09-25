@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 The format follows Keep a Changelog and Semantic Versioning.
 
+## [1.1.0] - 2026-09-24
+
+### Added
+
+- `Flag.AsJSON() any` — the SDK now supports the `json` flag type, exposing structured (`map[string]any`/`[]any`) flag values alongside the existing `AsBool()`/`AsString()`/`AsNumber()` accessors. `map[string]any`/`[]any` default values passed to `Single()` are now typed as `json` (previously stringified). `GetJSON()` convenience methods are also available on `Zenmanage` and the `middleware`/`middleware/gin`/`middleware/echo` packages, matching `GetString`/`GetNumber`. See the README's "Value Types & Cross-Type Coercion" section for the full coercion reference.
+
 ## [1.0.1] - 2026-09-23
 
 ### Fixed

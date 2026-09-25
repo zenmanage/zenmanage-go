@@ -1,6 +1,7 @@
 package zenmanage
 
 import (
+	"reflect"
 	"strconv"
 )
 
@@ -53,10 +54,22 @@ func newDefaultFlag(key string, value any) Flag {
 		f := float64(v)
 		envelope.Value.Number = &f
 	default:
-		// Preserve compatibility by coercing unknown defaults to string.
-		s := ""
-		data.Type = FlagTypeString
-		envelope.Value.String = &s
+		// Any map or slice/array default (map[string]any, []any, and equally
+		// a concretely-typed map[string]string, []int, etc.) is treated as a
+		// json default and preserved as-is, so GetJSON()/AsJSON() hand the
+		// caller back their own default unchanged rather than silently
+		// discarding it. Anything else falls through to the pre-existing
+		// string coercion below.
+		switch reflect.ValueOf(value).Kind() {
+		case reflect.Map, reflect.Slice, reflect.Array:
+			data.Type = FlagTypeJSON
+			envelope.Value.JSON = value
+		default:
+			// Preserve compatibility by coercing unknown defaults to string.
+			s := ""
+			data.Type = FlagTypeString
+			envelope.Value.String = &s
+		}
 	}
 	return Flag{
 		version: data.Version,
@@ -101,6 +114,11 @@ func (f Flag) Value() any {
 			return *f.target.Value.Value.Number
 		}
 		return float64(0)
+	case FlagTypeJSON:
+		if f.target.Value.Value.JSON != nil {
+			return f.target.Value.Value.JSON
+		}
+		return map[string]any{}
 	default:
 		if f.target.Value.Value.String != nil {
 			return *f.target.Value.Value.String
@@ -158,6 +176,25 @@ func (f Flag) AsNumber() float64 {
 		return v
 	default:
 		return 0
+	}
+}
+
+// AsJSON coerces the value to a JSON-decoded structure: typically a
+// map[string]any for a JSON object or a []any for a JSON array, but any
+// map/slice/array value is returned as-is (this covers a concretely-typed
+// default, e.g. map[string]string, passed to Single()/GetJSON()). It only
+// recognizes a json-typed flag's own value — calling it on a
+// boolean/string/number flag (or on a json flag with no value) returns an
+// empty map[string]any, the same safe zero-value fallback
+// AsBool/AsString/AsNumber use for a mismatched type, rather than
+// attempting a lossy conversion.
+func (f Flag) AsJSON() any {
+	v := f.Value()
+	switch reflect.ValueOf(v).Kind() {
+	case reflect.Map, reflect.Slice, reflect.Array:
+		return v
+	default:
+		return map[string]any{}
 	}
 }
 

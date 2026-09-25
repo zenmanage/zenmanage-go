@@ -284,11 +284,13 @@ func TestFlagManagerEvaluatesRulesAndRollout(t *testing.T) {
 				Boolean *bool    `json:"boolean,omitempty"`
 				String  *string  `json:"string,omitempty"`
 				Number  *float64 `json:"number,omitempty"`
+				JSON    any      `json:"json,omitempty"`
 			}{Boolean: &falseVal}}},
 			Rules: []Rule{{Clauses: []RuleCondition{{Attribute: "country", Operator: "equal", Value: "US"}}, Value: ValueEnvelope{Value: struct {
 				Boolean *bool    `json:"boolean,omitempty"`
 				String  *string  `json:"string,omitempty"`
 				Number  *float64 `json:"number,omitempty"`
+				JSON    any      `json:"json,omitempty"`
 			}{Boolean: &trueVal}}}},
 		},
 		{
@@ -300,6 +302,7 @@ func TestFlagManagerEvaluatesRulesAndRollout(t *testing.T) {
 				Boolean *bool    `json:"boolean,omitempty"`
 				String  *string  `json:"string,omitempty"`
 				Number  *float64 `json:"number,omitempty"`
+				JSON    any      `json:"json,omitempty"`
 			}{String: &fallback}}},
 			Rollout: &RolloutData{
 				Percentage: 100,
@@ -309,6 +312,7 @@ func TestFlagManagerEvaluatesRulesAndRollout(t *testing.T) {
 					Boolean *bool    `json:"boolean,omitempty"`
 					String  *string  `json:"string,omitempty"`
 					Number  *float64 `json:"number,omitempty"`
+					JSON    any      `json:"json,omitempty"`
 				}{String: &on}}},
 			},
 		},
@@ -441,21 +445,22 @@ func (l *capturingLogger) warnCount() int {
 	return len(l.warns)
 }
 
-// mixedTypeRulesJSON mirrors a rules payload once the API starts serving a
-// json-typed flag alongside the existing boolean/string/number types.
+// mixedTypeRulesJSON mirrors a rules payload containing a flag of a type
+// this SDK release doesn't recognize (e.g. a hypothetical future "enum"
+// type) alongside the existing boolean/string/number/json types.
 const mixedTypeRulesJSON = `{"version":"1","flags":[` +
 	`{"version":"1","type":"boolean","key":"bool-flag","name":"bool-flag","target":{"value":{"value":{"boolean":true}}}},` +
 	`{"version":"1","type":"string","key":"string-flag","name":"string-flag","target":{"value":{"value":{"string":"hello"}}}},` +
 	`{"version":"1","type":"number","key":"number-flag","name":"number-flag","target":{"value":{"value":{"number":42}}}},` +
-	`{"version":"1","type":"json","key":"json-flag","name":"json-flag","target":{"value":{"value":{"json":{"nested":{"a":1,"b":[1,2,3]}}}}}}` +
+	`{"version":"1","type":"enum","key":"enum-flag","name":"enum-flag","target":{"value":{"value":{"enum":"red"}}}}` +
 	`]}`
 
 // TestFlagManagerToleratesUnknownFlagType confirms ZEN-1667: a rules payload
-// containing a flag of a type this SDK release doesn't recognize (e.g. the
-// upcoming "json" type) must not panic, must not error the whole payload,
-// and must not silently resolve to a garbage/wrong value for that flag —
-// looking it up must degrade to the caller's own default, while every other
-// flag in the same payload evaluates normally.
+// containing a flag of a type this SDK release doesn't recognize (e.g. a
+// hypothetical future "enum" type) must not panic, must not error the whole
+// payload, and must not silently resolve to a garbage/wrong value for that
+// flag — looking it up must degrade to the caller's own default, while every
+// other flag in the same payload evaluates normally.
 func TestFlagManagerToleratesUnknownFlagType(t *testing.T) {
 	server := startMockRulesServer(t, mixedTypeRulesJSON, nil)
 
@@ -494,7 +499,7 @@ func TestFlagManagerToleratesUnknownFlagType(t *testing.T) {
 	// Looking up the unknown-typed flag directly must resolve to the
 	// caller's own default, not panic, not error, and not a garbage value
 	// (e.g. an empty string coerced from a mis-parsed value wrapper).
-	flag, err := manager.Single(context.Background(), "json-flag", "caller-default")
+	flag, err := manager.Single(context.Background(), "enum-flag", "caller-default")
 	if err != nil {
 		t.Fatalf("Single() should not error on an unknown flag type, got: %v", err)
 	}
@@ -502,7 +507,7 @@ func TestFlagManagerToleratesUnknownFlagType(t *testing.T) {
 		t.Fatalf("expected unknown-typed flag to resolve to the caller's default %q, got %q", "caller-default", flag.AsString())
 	}
 
-	numFlag, err := manager.Single(context.Background(), "json-flag", 99.5)
+	numFlag, err := manager.Single(context.Background(), "enum-flag", 99.5)
 	if err != nil {
 		t.Fatalf("Single() should not error on an unknown flag type, got: %v", err)
 	}
@@ -532,10 +537,10 @@ func TestFlagManagerUnknownFlagTypeUsesDefaultsCollection(t *testing.T) {
 		t.Fatalf("build failed: %v", err)
 	}
 
-	defaults := DefaultsFromMap(map[string]any{"json-flag": "from-collection"})
+	defaults := DefaultsFromMap(map[string]any{"enum-flag": "from-collection"})
 	manager := New(cfg).Flags().WithDefaults(defaults)
 
-	flag, err := manager.Single(context.Background(), "json-flag")
+	flag, err := manager.Single(context.Background(), "enum-flag")
 	if err != nil {
 		t.Fatalf("Single() should not error on an unknown flag type, got: %v", err)
 	}
@@ -569,13 +574,98 @@ func TestFlagManagerUnknownFlagTypeWarningDedupesAcrossClones(t *testing.T) {
 	// FlagManager via WithContext, the way IsEnabled/GetString/GetNumber do.
 	for i := 0; i < 3; i++ {
 		clone := root.WithContext(SingleContext("user", "u-1", ""))
-		if _, err := clone.Single(context.Background(), "json-flag", "default"); err != nil {
+		if _, err := clone.Single(context.Background(), "enum-flag", "default"); err != nil {
 			t.Fatalf("Single() should not error on an unknown flag type, got: %v", err)
 		}
 	}
 
 	if got := logger.warnCount(); got != 1 {
 		t.Fatalf("expected exactly one warning logged across clones sharing the same root manager, got %d", got)
+	}
+}
+
+// jsonFlagRulesJSON mirrors a rules payload containing a real json-typed
+// flag, evaluated the same way as any other known type (ZEN-1671) rather
+// than degrading to the caller's default the way an unrecognized type does.
+const jsonFlagRulesJSON = `{"version":"1","flags":[` +
+	`{"version":"1","type":"json","key":"config-flag","name":"config-flag","target":{"value":{"value":{"json":{"nested":{"a":1,"b":[1,2,3]}}}}}},` +
+	`{"version":"1","type":"json","key":"list-flag","name":"list-flag","target":{"value":{"value":{"json":[1,2,3]}}}}` +
+	`]}`
+
+// TestFlagManagerEvaluatesJSONFlag confirms ZEN-1671: a json-typed flag is
+// evaluated normally (not skipped/defaulted) and AsJSON() returns the
+// decoded structure for both a JSON object and a JSON array value.
+func TestFlagManagerEvaluatesJSONFlag(t *testing.T) {
+	server := startMockRulesServer(t, jsonFlagRulesJSON, nil)
+
+	cfg, err := NewConfigBuilder().
+		WithEnvironmentToken("srv_token").
+		WithAPIEndpoint(server.URL).
+		WithHTTPClient(server.Client()).
+		Build()
+	if err != nil {
+		t.Fatalf("build failed: %v", err)
+	}
+
+	manager := New(cfg).Flags()
+
+	flag, err := manager.Single(context.Background(), "config-flag", map[string]any{})
+	if err != nil {
+		t.Fatalf("Single() should evaluate a json flag without error, got: %v", err)
+	}
+	obj, ok := flag.AsJSON().(map[string]any)
+	if !ok {
+		t.Fatalf("expected AsJSON() to return a map[string]any, got %T", flag.AsJSON())
+	}
+	nested, ok := obj["nested"].(map[string]any)
+	if !ok || nested["a"] != float64(1) {
+		t.Fatalf("expected decoded nested object, got %+v", obj)
+	}
+
+	listFlag, err := manager.Single(context.Background(), "list-flag", []any{})
+	if err != nil {
+		t.Fatalf("Single() should evaluate a json flag without error, got: %v", err)
+	}
+	list, ok := listFlag.AsJSON().([]any)
+	if !ok || len(list) != 3 {
+		t.Fatalf("expected AsJSON() to return a 3-element []any, got %+v", listFlag.AsJSON())
+	}
+
+	// Calling a mismatched accessor on a json flag must fall back to the safe
+	// zero value rather than a lossy conversion.
+	if flag.AsString() != "" || flag.AsNumber() != 0 || flag.AsBool() {
+		t.Fatalf("expected mismatched accessors on a json flag to return safe zero values, got string=%q number=%v bool=%v",
+			flag.AsString(), flag.AsNumber(), flag.AsBool())
+	}
+}
+
+// TestFlagManagerJSONDefaultTyping confirms ZEN-1671: a map/slice inline
+// default for a missing flag is typed as json (and readable via AsJSON()),
+// not stringified.
+func TestFlagManagerJSONDefaultTyping(t *testing.T) {
+	server := startMockRulesServer(t, `{"version":"1","flags":[]}`, nil)
+
+	cfg, err := NewConfigBuilder().
+		WithEnvironmentToken("srv_token").
+		WithAPIEndpoint(server.URL).
+		WithHTTPClient(server.Client()).
+		Build()
+	if err != nil {
+		t.Fatalf("build failed: %v", err)
+	}
+
+	manager := New(cfg).Flags()
+
+	flag, err := manager.Single(context.Background(), "missing-flag", map[string]any{"mode": "dark"})
+	if err != nil {
+		t.Fatalf("Single() should fall back to the inline default, got: %v", err)
+	}
+	if flag.Type() != FlagTypeJSON {
+		t.Fatalf("expected a map default to be typed as json, got %v", flag.Type())
+	}
+	obj, ok := flag.AsJSON().(map[string]any)
+	if !ok || obj["mode"] != "dark" {
+		t.Fatalf("expected AsJSON() to return the map default unchanged, got %+v", flag.AsJSON())
 	}
 }
 

@@ -12,17 +12,18 @@ const (
 	FlagTypeString FlagType = "string"
 	// FlagTypeNumber represents numeric flags.
 	FlagTypeNumber FlagType = "number"
+	// FlagTypeJSON represents structured (JSON object/array) flags.
+	FlagTypeJSON FlagType = "json"
 )
 
 // isKnownFlagType reports whether t is a primitive type this SDK release
 // knows how to evaluate. A rules payload may contain a flag type added to
-// the API after this SDK release shipped (e.g. "json") — such a flag is
-// skipped/defaulted by the flag manager rather than causing a parse or
-// evaluation failure, so older SDK releases stay forward compatible with
-// new flag types.
+// the API after this SDK release shipped — such a flag is skipped/defaulted
+// by the flag manager rather than causing a parse or evaluation failure, so
+// older SDK releases stay forward compatible with new flag types.
 func isKnownFlagType(t FlagType) bool {
 	switch t {
-	case FlagTypeBoolean, FlagTypeString, FlagTypeNumber:
+	case FlagTypeBoolean, FlagTypeString, FlagTypeNumber, FlagTypeJSON:
 		return true
 	default:
 		return false
@@ -121,6 +122,9 @@ type ValueEnvelope struct {
 		Boolean *bool    `json:"boolean,omitempty"`
 		String  *string  `json:"string,omitempty"`
 		Number  *float64 `json:"number,omitempty"`
+		// JSON holds a structured value decoded from a JSON object (as
+		// map[string]any) or JSON array (as []any) wrapper.
+		JSON any `json:"json,omitempty"`
 	} `json:"value"`
 }
 

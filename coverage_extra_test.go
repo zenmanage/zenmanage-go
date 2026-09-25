@@ -226,6 +226,7 @@ func TestFlagAllAccessors(t *testing.T) {
 		Boolean *bool    `json:"boolean,omitempty"`
 		String  *string  `json:"string,omitempty"`
 		Number  *float64 `json:"number,omitempty"`
+		JSON    any      `json:"json,omitempty"`
 	}{Boolean: &b}}}}
 	if f2.IsEnabled() {
 		t.Fatalf("expected false flag disabled")
@@ -264,8 +265,14 @@ func TestDefaultFlagFloat32AndInt64(t *testing.T) {
 	if f := newDefaultFlag("a", float64(3.14)); f.Type() != FlagTypeNumber {
 		t.Fatalf("expected number type for float64")
 	}
-	// unknown type should default to string
-	if f := newDefaultFlag("a", []int{1, 2}); f.Type() != FlagTypeString {
+	// a concretely-typed slice default (not just []any) is typed as json,
+	// not stringified (ZEN-1671).
+	if f := newDefaultFlag("a", []int{1, 2}); f.Type() != FlagTypeJSON {
+		t.Fatalf("expected json type for a typed slice default")
+	}
+	// a value with no sensible mapping (not a bool/string/number/map/slice)
+	// still falls back to the pre-existing string coercion.
+	if f := newDefaultFlag("a", struct{ X int }{X: 1}); f.Type() != FlagTypeString {
 		t.Fatalf("expected string for unknown type")
 	}
 }
@@ -276,6 +283,7 @@ func TestFlagAsNumberFromStringError(t *testing.T) {
 		Boolean *bool    `json:"boolean,omitempty"`
 		String  *string  `json:"string,omitempty"`
 		Number  *float64 `json:"number,omitempty"`
+		JSON    any      `json:"json,omitempty"`
 	}{String: &s}}}}
 	if f.AsNumber() != 0 {
 		t.Fatalf("expected 0 for non-numeric string")
@@ -348,6 +356,7 @@ func TestRuleEngineNoClauses(t *testing.T) {
 		Boolean *bool    `json:"boolean,omitempty"`
 		String  *string  `json:"string,omitempty"`
 		Number  *float64 `json:"number,omitempty"`
+		JSON    any      `json:"json,omitempty"`
 	}{String: &s}}}
 	v, err := engine.Evaluate([]Rule{rule}, ctx)
 	if err != nil || v == nil || v.Value.String == nil || *v.Value.String != "val" {
@@ -377,6 +386,7 @@ func TestFlagManagerAll(t *testing.T) {
 			Boolean *bool    `json:"boolean,omitempty"`
 			String  *string  `json:"string,omitempty"`
 			Number  *float64 `json:"number,omitempty"`
+			JSON    any      `json:"json,omitempty"`
 		}{Boolean: &b}}}},
 	}})
 
@@ -402,6 +412,7 @@ func TestFlagManagerAllPreservesPayloadOrder(t *testing.T) {
 			Boolean *bool    `json:"boolean,omitempty"`
 			String  *string  `json:"string,omitempty"`
 			Number  *float64 `json:"number,omitempty"`
+			JSON    any      `json:"json,omitempty"`
 		}{Boolean: &b}}}}
 	}
 	manager.rules = newFlagIndex(RulesResponse{Version: "1", Flags: flagsData})
@@ -434,11 +445,13 @@ func TestFlagManagerSingleDuplicateKeyFirstWins(t *testing.T) {
 			Boolean *bool    `json:"boolean,omitempty"`
 			String  *string  `json:"string,omitempty"`
 			Number  *float64 `json:"number,omitempty"`
+			JSON    any      `json:"json,omitempty"`
 		}{Boolean: &first}}}},
 		{Version: "1", Type: FlagTypeBoolean, Key: "dup", Name: "second", Target: Target{Value: ValueEnvelope{Value: struct {
 			Boolean *bool    `json:"boolean,omitempty"`
 			String  *string  `json:"string,omitempty"`
 			Number  *float64 `json:"number,omitempty"`
+			JSON    any      `json:"json,omitempty"`
 		}{Boolean: &second}}}},
 	}})
 
