@@ -131,6 +131,46 @@ func TestFlagAsBoolJSONAlwaysTrue(t *testing.T) {
 	}
 }
 
+// TestFlagAsBoolNumberAndStringAlwaysTrue confirms AsBool() returns true
+// unconditionally for number/string flags too, per the same coercion
+// contract as TestFlagAsBoolJSONAlwaysTrue — this was a pre-existing gap
+// (value-dependent truthy checks) that predates json support entirely.
+func TestFlagAsBoolNumberAndStringAlwaysTrue(t *testing.T) {
+	zero := 0.0
+	empty := ""
+	falseStr := "false"
+
+	fn := Flag{typ: FlagTypeNumber, target: Target{Value: ValueEnvelope{Value: struct {
+		Boolean *bool    `json:"boolean,omitempty"`
+		String  *string  `json:"string,omitempty"`
+		Number  *float64 `json:"number,omitempty"`
+		JSON    any      `json:"json,omitempty"`
+	}{Number: &zero}}}}
+	if !fn.AsBool() {
+		t.Fatalf("expected AsBool() on a number flag set to 0 to return true")
+	}
+
+	fs := Flag{typ: FlagTypeString, target: Target{Value: ValueEnvelope{Value: struct {
+		Boolean *bool    `json:"boolean,omitempty"`
+		String  *string  `json:"string,omitempty"`
+		Number  *float64 `json:"number,omitempty"`
+		JSON    any      `json:"json,omitempty"`
+	}{String: &empty}}}}
+	if !fs.AsBool() {
+		t.Fatalf("expected AsBool() on a string flag set to \"\" to return true")
+	}
+
+	ffalse := Flag{typ: FlagTypeString, target: Target{Value: ValueEnvelope{Value: struct {
+		Boolean *bool    `json:"boolean,omitempty"`
+		String  *string  `json:"string,omitempty"`
+		Number  *float64 `json:"number,omitempty"`
+		JSON    any      `json:"json,omitempty"`
+	}{String: &falseStr}}}}
+	if !ffalse.AsBool() {
+		t.Fatalf(`expected AsBool() on a string flag set to "false" to return true`)
+	}
+}
+
 func boolPtr(b bool) *bool { return &b }
 
 func TestDefaultFlagTypeInference(t *testing.T) {

@@ -140,10 +140,10 @@ func (m *FlagManager) Single(ctx context.Context, key string, inlineDefault ...a
 	if f, ok := idx.byKey[key]; ok {
 		if !isKnownFlagType(f.Type) {
 			// A flag type this SDK release doesn't recognize yet (e.g. a
-			// newer "json" flag served to an older release) can't be
-			// evaluated meaningfully — degrade to the caller's default
-			// exactly as if the flag were absent, rather than returning a
-			// zero-value/garbage result for an unrecognized type.
+			// future type served to an older release) can't be evaluated
+			// meaningfully — degrade to the caller's default exactly as if
+			// the flag were absent, rather than returning a zero-value/
+			// garbage result for an unrecognized type.
 			m.warnUnknownFlagType(f.Key, f.Type)
 		} else {
 			flag, err := m.evaluateFlag(f, contextValue)

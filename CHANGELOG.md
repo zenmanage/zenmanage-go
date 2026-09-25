@@ -8,7 +8,7 @@ The format follows Keep a Changelog and Semantic Versioning.
 
 ### Fixed
 
-- `Flag.AsBool()` returned `false` for a `json`-typed flag instead of `true`. Per the documented cross-SDK coercion contract, `AsBool()` must return `true` for every non-boolean type regardless of the underlying value; a `json` flag now behaves the same as `string`/`number` flags did already (ZEN-1752).
+- `Flag.AsBool()` now returns `true` unconditionally for every non-boolean flag type (`number`, `string`, and `json`), per the documented cross-SDK coercion contract. Previously only `json` fell through to `false`; `number`/`string` were already value-dependent (e.g. `0` or `""` incorrectly returned `false`) even before `json` support existed (ZEN-1752).
 - `FlagManager.Single()` returned an error instead of the caller's provided default when the environment was totally unreachable (e.g. an invalid key producing an HTTP 401 on the rules fetch). `Single()` now catches a rules-fetch failure and falls through to the caller's inline default or `DefaultsCollection` entry, matching the `zenmanage-php` reference SDK's `loadFlagsOrFallBackToDefaults()` pattern (ZEN-1754).
 
 ## [1.1.0] - 2026-09-24

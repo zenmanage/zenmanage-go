@@ -129,23 +129,15 @@ func (f Flag) Value() any {
 
 // AsBool coerces value to boolean.
 func (f Flag) AsBool() bool {
-	if f.typ == FlagTypeJSON {
-		// Matches the reference (PHP) SDK's coercion table: asBool() returns
-		// true for every non-boolean type, regardless of the underlying
-		// value — a json flag's value is wrapped in a non-empty envelope,
-		// which is always truthy.
-		return true
+	// Matches the reference (PHP) SDK's coercion table: AsBool() returns true
+	// for every non-boolean type, regardless of the underlying value
+	// (including a number flag set to 0, a string flag set to "", or a json
+	// flag) — the value is wrapped in a non-empty envelope, which is always
+	// truthy. Only an actual boolean flag returns its real value.
+	if b, ok := f.Value().(bool); ok {
+		return b
 	}
-	switch v := f.Value().(type) {
-	case bool:
-		return v
-	case string:
-		return v != "" && v != "false" && v != "0"
-	case float64:
-		return v != 0
-	default:
-		return false
-	}
+	return true
 }
 
 // AsString coerces value to string.
