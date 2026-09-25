@@ -193,9 +193,9 @@ A flag's `Type()` is one of `FlagTypeBoolean`, `FlagTypeString`, `FlagTypeNumber
 | `number` | `true` unless `0` | formatted number | the number | `map[string]any{}` |
 | `json` | `false` | `""` | `0` | the decoded `map[string]any`/`[]any` |
 
-`AsJSON()` on a boolean/string/number flag, or on a json flag with no value, returns an empty `map[string]any{}` rather than attempting to wrap or stringify that value.
+`AsJSON()` on a boolean/string/number flag, or on a json flag with no value, returns an empty `map[string]any{}` rather than attempting to wrap or stringify that value — this is the same "unconditional empty object" fallback the reference PHP/Python SDKs use, regardless of whether the flag is otherwise expected to hold an array. Because `AsJSON()` returns `any`, always use the two-value type assertion (`obj, ok := flag.AsJSON().(map[string]any)`) rather than an unchecked one — an unchecked assertion panics whenever the underlying value's concrete type doesn't match what you asserted, including this empty-map fallback.
 
-**Default values** passed to `Single(key, default)` are typed from the Go value itself: a `map[string]any` or `[]any` default becomes a `json`-typed flag (not stringified), so `AsJSON()` on a missing flag with such a default returns it unchanged. Other composite types (custom structs, `map[string]string`, typed slices, etc.) aren't recognized as json defaults — pass `map[string]any`/`[]any` explicitly.
+**Default values** passed to `Single(key, default)` are typed from the Go value itself: any map or slice/array default — `map[string]any`/`[]any`, or a concretely-typed one like `map[string]string`/`[]int` — becomes a `json`-typed flag (not stringified), and `AsJSON()` on a missing flag returns that default unchanged, preserving its original concrete type. Other values (custom structs, pointers, etc.) fall back to the pre-existing string coercion.
 
 ## Configuration
 
