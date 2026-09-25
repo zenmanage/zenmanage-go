@@ -1,54 +1,15 @@
 package echomiddleware_test
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/labstack/echo/v4"
 	zenmanage "github.com/zenmanage/zenmanage-go"
+	"github.com/zenmanage/zenmanage-go/internal/testutil"
 	echomiddleware "github.com/zenmanage/zenmanage-go/middleware/echo"
 )
-
-// buildPreloadedClient sets up a mock HTTP server that returns two flags and
-// returns a Zenmanage client pointed at that server.
-func buildPreloadedClient(t *testing.T) *zenmanage.Zenmanage {
-	t.Helper()
-
-	const rulesJSON = `{"version":"1","flags":[` +
-		`{"version":"1","type":"boolean","key":"feat","name":"Feature","target":{"value":{"value":{"boolean":true}}},"rules":[]},` +
-		`{"version":"1","type":"string","key":"color","name":"Color","target":{"value":{"value":{"string":"hello"}}},"rules":[]},` +
-		`{"version":"1","type":"json","key":"config","name":"Config","target":{"value":{"value":{"json":{"mode":"dark"}}}},"rules":[]}` +
-		`]}`
-
-	var srv *httptest.Server
-	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/v1/flag-json":
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"data": map[string]string{"cdn": srv.URL, "path": "/rules.json"},
-			})
-		case "/rules.json":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(rulesJSON))
-		default:
-			w.WriteHeader(http.StatusNoContent)
-		}
-	}))
-	t.Cleanup(srv.Close)
-
-	cfg, err := zenmanage.NewConfigBuilder().
-		WithEnvironmentToken("srv_token").
-		WithAPIEndpoint(srv.URL).
-		WithHTTPClient(srv.Client()).
-		Build()
-	if err != nil {
-		t.Fatalf("build: %v", err)
-	}
-	return zenmanage.New(cfg)
-}
 
 func newTestContext(e *echo.Echo, req *http.Request) (echo.Context, *httptest.ResponseRecorder) {
 	rec := httptest.NewRecorder()
@@ -56,7 +17,7 @@ func newTestContext(e *echo.Echo, req *http.Request) (echo.Context, *httptest.Re
 }
 
 func TestInjectFlags_NoUserID(t *testing.T) {
-	client := buildPreloadedClient(t)
+	client := testutil.BuildPreloadedClient(t)
 
 	var gotFM *zenmanage.FlagManager
 	e := echo.New()
@@ -75,7 +36,7 @@ func TestInjectFlags_NoUserID(t *testing.T) {
 }
 
 func TestInjectFlags_WithUserID(t *testing.T) {
-	client := buildPreloadedClient(t)
+	client := testutil.BuildPreloadedClient(t)
 
 	var gotFM *zenmanage.FlagManager
 	e := echo.New()
@@ -95,7 +56,7 @@ func TestInjectFlags_WithUserID(t *testing.T) {
 }
 
 func TestIsEnabled_ViaEchoContext(t *testing.T) {
-	client := buildPreloadedClient(t)
+	client := testutil.BuildPreloadedClient(t)
 
 	var enabled bool
 	var evalErr error
@@ -129,7 +90,7 @@ func TestIsEnabled_NoManager(t *testing.T) {
 }
 
 func TestGetString_ViaEchoContext(t *testing.T) {
-	client := buildPreloadedClient(t)
+	client := testutil.BuildPreloadedClient(t)
 
 	var val string
 	var evalErr error
@@ -166,7 +127,7 @@ func TestGetString_NoManager(t *testing.T) {
 }
 
 func TestGetNumber_ViaEchoContext(t *testing.T) {
-	client := buildPreloadedClient(t)
+	client := testutil.BuildPreloadedClient(t)
 
 	e := echo.New()
 	e.Use(echomiddleware.InjectFlags(client))
@@ -200,7 +161,7 @@ func TestGetNumber_NoManager(t *testing.T) {
 }
 
 func TestGetJSON_ViaEchoContext(t *testing.T) {
-	client := buildPreloadedClient(t)
+	client := testutil.BuildPreloadedClient(t)
 
 	e := echo.New()
 	e.Use(echomiddleware.InjectFlags(client))
