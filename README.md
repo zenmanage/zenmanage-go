@@ -191,7 +191,7 @@ A flag's `Type()` is one of `FlagTypeBoolean`, `FlagTypeString`, `FlagTypeNumber
 | `boolean` | the bool | `"true"`/`"false"` | `1`/`0` | `map[string]any{}` |
 | `string` | truthy check (`""`/`"false"`/`"0"` are false) | the string | parsed number, or `0` | `map[string]any{}` |
 | `number` | `true` unless `0` | formatted number | the number | `map[string]any{}` |
-| `json` | `false` | `""` | `0` | the decoded `map[string]any`/`[]any` |
+| `json` | `true` | `""` | `0` | the decoded `map[string]any`/`[]any` |
 
 `AsJSON()` on a boolean/string/number flag, or on a json flag with no value, returns an empty `map[string]any{}` rather than attempting to wrap or stringify that value — this is the same "unconditional empty object" fallback the reference PHP/Python SDKs use, regardless of whether the flag is otherwise expected to hold an array. Because `AsJSON()` returns `any`, always use the two-value type assertion (`obj, ok := flag.AsJSON().(map[string]any)`) rather than an unchecked one — an unchecked assertion panics whenever the underlying value's concrete type doesn't match what you asserted, including this empty-map fallback.
 

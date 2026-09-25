@@ -55,9 +55,11 @@ func TestFlagAsJSON(t *testing.T) {
 		t.Fatalf("expected AsJSON() to return the decoded object %+v, got %+v", obj, got)
 	}
 	// Calling a mismatched accessor on a json flag must fall back to the
-	// safe zero value, never a lossy conversion.
-	if fj.AsString() != "" || fj.AsNumber() != 0 || fj.AsBool() {
-		t.Fatalf("expected mismatched accessors on a json flag to return safe zero values")
+	// safe zero value, never a lossy conversion — except AsBool(), which per
+	// the documented cross-SDK coercion contract returns true for every
+	// non-boolean type regardless of the underlying value.
+	if fj.AsString() != "" || fj.AsNumber() != 0 || !fj.AsBool() {
+		t.Fatalf("expected mismatched string/number accessors on a json flag to return safe zero values and AsBool() to return true")
 	}
 
 	fl := Flag{typ: FlagTypeJSON, target: Target{Value: ValueEnvelope{Value: struct {
@@ -86,6 +88,46 @@ func TestFlagAsJSON(t *testing.T) {
 	fEmpty := Flag{typ: FlagTypeJSON}
 	if got := fEmpty.AsJSON(); !reflect.DeepEqual(got, map[string]any{}) {
 		t.Fatalf("expected AsJSON() on an empty json flag to return an empty map, got %+v", got)
+	}
+}
+
+// TestFlagAsBoolJSONAlwaysTrue confirms ZEN-1752: AsBool() on a json-typed
+// flag must return true regardless of the underlying decoded value —
+// including falsy-looking values like an empty object/array, or no value at
+// all — matching the documented cross-SDK coercion contract (every
+// non-boolean type is truthy for AsBool()).
+func TestFlagAsBoolJSONAlwaysTrue(t *testing.T) {
+	newJSONFlag := func(value any) Flag {
+		return Flag{typ: FlagTypeJSON, target: Target{Value: ValueEnvelope{Value: struct {
+			Boolean *bool    `json:"boolean,omitempty"`
+			String  *string  `json:"string,omitempty"`
+			Number  *float64 `json:"number,omitempty"`
+			JSON    any      `json:"json,omitempty"`
+		}{JSON: value}}}}
+	}
+
+	cases := []struct {
+		name  string
+		value any
+	}{
+		{"populated object", map[string]any{"mode": "dark"}},
+		{"populated array", []any{1, 2, 3}},
+		{"empty object", map[string]any{}},
+		{"empty array", []any{}},
+		{"nil value", nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if !newJSONFlag(tc.value).AsBool() {
+				t.Fatalf("expected AsBool() on a json flag with value %+v to return true", tc.value)
+			}
+		})
+	}
+
+	// A json flag with no value set at all (zero-value Target) must also be
+	// truthy.
+	if !(Flag{typ: FlagTypeJSON}).AsBool() {
+		t.Fatalf("expected AsBool() on an empty json flag to return true")
 	}
 }
 

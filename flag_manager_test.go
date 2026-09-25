@@ -632,9 +632,11 @@ func TestFlagManagerEvaluatesJSONFlag(t *testing.T) {
 	}
 
 	// Calling a mismatched accessor on a json flag must fall back to the safe
-	// zero value rather than a lossy conversion.
-	if flag.AsString() != "" || flag.AsNumber() != 0 || flag.AsBool() {
-		t.Fatalf("expected mismatched accessors on a json flag to return safe zero values, got string=%q number=%v bool=%v",
+	// zero value rather than a lossy conversion — except AsBool(), which per
+	// the documented cross-SDK coercion contract returns true for every
+	// non-boolean type regardless of the underlying value.
+	if flag.AsString() != "" || flag.AsNumber() != 0 || !flag.AsBool() {
+		t.Fatalf("expected mismatched string/number accessors on a json flag to return safe zero values and AsBool() to return true, got string=%q number=%v bool=%v",
 			flag.AsString(), flag.AsNumber(), flag.AsBool())
 	}
 }
@@ -666,6 +668,62 @@ func TestFlagManagerJSONDefaultTyping(t *testing.T) {
 	obj, ok := flag.AsJSON().(map[string]any)
 	if !ok || obj["mode"] != "dark" {
 		t.Fatalf("expected AsJSON() to return the map default unchanged, got %+v", flag.AsJSON())
+	}
+}
+
+// TestFlagManagerSingleFallsBackToDefaultWhenRulesUnreachable confirms
+// ZEN-1754: when the environment is totally unreachable (e.g. an invalid key
+// producing an HTTP 401 on both the metadata and rules fetch), Single() must
+// fall back to serving the caller's provided default instead of propagating
+// the rules-fetch error, mirroring the PHP reference SDK's
+// loadFlagsOrFallBackToDefaults() pattern.
+func TestFlagManagerSingleFallsBackToDefaultWhenRulesUnreachable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	logger := &capturingLogger{}
+	cfg, err := NewConfigBuilder().
+		WithEnvironmentToken("srv_invalid").
+		WithAPIEndpoint(server.URL).
+		WithHTTPClient(server.Client()).
+		WithLogger(logger).
+		Build()
+	if err != nil {
+		t.Fatalf("build failed: %v", err)
+	}
+
+	manager := New(cfg).Flags()
+
+	flag, err := manager.Single(context.Background(), "some-flag", "inline-default")
+	if err != nil {
+		t.Fatalf("expected Single() to fall back to the inline default instead of erroring, got: %v", err)
+	}
+	if flag.AsString() != "inline-default" {
+		t.Fatalf("expected inline default %q, got %q", "inline-default", flag.AsString())
+	}
+
+	// A DefaultsCollection entry must also work as the fallback when no
+	// inline default is provided.
+	defaults := DefaultsFromMap(map[string]any{"some-flag": "from-collection"})
+	flag, err = manager.WithDefaults(defaults).Single(context.Background(), "some-flag")
+	if err != nil {
+		t.Fatalf("expected Single() to fall back to the defaults collection instead of erroring, got: %v", err)
+	}
+	if flag.AsString() != "from-collection" {
+		t.Fatalf("expected defaults collection value %q, got %q", "from-collection", flag.AsString())
+	}
+
+	// With no default at all, Single() still surfaces a not-found error
+	// (rather than silently returning a zero-value flag) once the fallback
+	// path finds no default to serve.
+	if _, err := New(cfg).Flags().Single(context.Background(), "some-flag"); err == nil {
+		t.Fatalf("expected an error when no default is available and rules are unreachable")
+	}
+
+	if got := logger.warnCount(); got == 0 {
+		t.Fatalf("expected at least one warning logged for the unreachable rules fetch")
 	}
 }
 

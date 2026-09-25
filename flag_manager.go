@@ -135,10 +135,7 @@ func (m *FlagManager) All(ctx context.Context) ([]Flag, error) {
 
 // Single returns one evaluated flag by key.
 func (m *FlagManager) Single(ctx context.Context, key string, inlineDefault ...any) (Flag, error) {
-	idx, err := m.loadRules(ctx)
-	if err != nil {
-		return Flag{}, err
-	}
+	idx := m.loadRulesOrFallBackToDefaults(ctx)
 	contextValue := m.getContext()
 	if f, ok := idx.byKey[key]; ok {
 		if !isKnownFlagType(f.Type) {
@@ -232,6 +229,22 @@ func (m *FlagManager) evaluateFlag(data FlagData, ctx *Context) (Flag, error) {
 	}
 
 	return newFlag(data, activeTarget, activeRules), nil
+}
+
+// loadRulesOrFallBackToDefaults loads the current rules, but — unlike
+// loadRules — never propagates a load failure to the caller. If the
+// environment is totally unreachable (e.g. an invalid key producing an HTTP
+// 401), it logs a warning and returns an empty index instead, so Single()
+// falls through to its existing not-found handling and serves the caller's
+// own default. Mirrors the PHP reference SDK's
+// loadFlagsOrFallBackToDefaults().
+func (m *FlagManager) loadRulesOrFallBackToDefaults(ctx context.Context) *flagIndex {
+	idx, err := m.loadRules(ctx)
+	if err != nil {
+		m.logger.Warn("failed to load rules, falling back to configured default", map[string]any{"error": err.Error()})
+		return &flagIndex{byKey: map[string]FlagData{}}
+	}
+	return idx
 }
 
 func (m *FlagManager) loadRules(ctx context.Context) (*flagIndex, error) {
