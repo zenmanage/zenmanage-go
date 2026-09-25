@@ -678,7 +678,7 @@ func TestFlagManagerJSONDefaultTyping(t *testing.T) {
 // the rules-fetch error, mirroring the PHP reference SDK's
 // loadFlagsOrFallBackToDefaults() pattern.
 func TestFlagManagerSingleFallsBackToDefaultWhenRulesUnreachable(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer server.Close()
