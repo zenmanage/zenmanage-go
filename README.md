@@ -1,8 +1,6 @@
 # Zenmanage Go SDK
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/zenmanage/zenmanage-go.svg)](https://pkg.go.dev/github.com/zenmanage/zenmanage-go)
-[![CI](https://github.com/zenmanage/zenmanage-go/actions/workflows/ci.yml/badge.svg)](https://github.com/zenmanage/zenmanage-go/actions/workflows/ci.yml)
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/e45d035523964569bb95d00e5e2c0a82)](https://app.codacy.com/gh/zenmanage/zenmanage-go/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+[![CI](https://github.com/zenmanage/zenmanage-go/actions/workflows/ci.yml/badge.svg)](https://github.com/zenmanage/zenmanage-go/actions/workflows/ci.yml) [![Version](https://img.shields.io/github/v/release/zenmanage/zenmanage-go)](https://github.com/zenmanage/zenmanage-go/releases) [![License](https://img.shields.io/github/license/zenmanage/zenmanage-go)](LICENSE) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/e45d035523964569bb95d00e5e2c0a82)](https://app.codacy.com/gh/zenmanage/zenmanage-go/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade) [![Go Reference](https://pkg.go.dev/badge/github.com/zenmanage/zenmanage-go.svg)](https://pkg.go.dev/github.com/zenmanage/zenmanage-go)
 
 Add feature flags to your Go services in minutes. Control feature rollouts, run A/B tests, and manage configuration without redeploying.
 
