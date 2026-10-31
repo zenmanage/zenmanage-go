@@ -6,6 +6,8 @@ The format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-30
+
 ### Fixed
 
 - `Flag.AsBool()` now returns `true` unconditionally for every non-boolean flag type (`number`, `string`, and `json`), per the documented cross-SDK coercion contract. Previously only `json` fell through to `false`; `number`/`string` were already value-dependent (e.g. `0` or `""` incorrectly returned `false`) even before `json` support existed (ZEN-1752).
