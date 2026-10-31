@@ -4,7 +4,7 @@ go 1.25.12
 
 require (
 	github.com/gin-gonic/gin v1.10.0
-	github.com/zenmanage/zenmanage-go v1.0.0
+	github.com/zenmanage/zenmanage-go v1.1.1
 )
 
 require (

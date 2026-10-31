@@ -4,7 +4,7 @@ go 1.25.12
 
 require (
 	github.com/labstack/echo/v4 v4.12.0
-	github.com/zenmanage/zenmanage-go v1.0.0
+	github.com/zenmanage/zenmanage-go v1.1.1
 )
 
 require (
