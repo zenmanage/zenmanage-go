@@ -6,7 +6,11 @@
 version: 2
 updates:
   - package-ecosystem: "gomod" # See documentation for possible values
-    directory: "/" # Location of package manifests
+    # The root module and the two middleware modules, which have their own go.mod files
+    directories:
+      - "/"
+      - "/middleware/echo"
+      - "/middleware/gin"
     schedule:
       interval: "weekly"
 
