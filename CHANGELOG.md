@@ -6,6 +6,12 @@ The format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [middleware/gin 1.1.2] - 2026-11-21
+
+### Changed
+
+- Updated `github.com/gin-gonic/gin` to v1.12.0 in the `middleware/gin` module. No changes to the middleware's API or behavior. The root module is unchanged.
+
 ## [1.1.1] - 2026-10-30
 
 ### Fixed
