@@ -257,6 +257,8 @@ wires up a user context so rollout and targeting rules apply per-request.
 
 ### Gin
 
+Requires Go 1.26.11 or newer.
+
 ~~~bash
 go get github.com/zenmanage/zenmanage-go/middleware/gin
 ~~~
@@ -274,6 +276,8 @@ r.GET("/feature", func(c *gin.Context) {
 ~~~
 
 ### Echo
+
+Requires Go 1.26.11 or newer.
 
 ~~~bash
 go get github.com/zenmanage/zenmanage-go/middleware/echo
