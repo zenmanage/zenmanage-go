@@ -6,6 +6,10 @@ The format follows Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- `middleware/gin` now requires Go 1.26.0 or newer (was 1.25.12). The indirect `golang.org/x` modules moved to `crypto` v0.59.0, `net` v0.63.0, `sys` v0.50.0 and `text` v0.44.0, which clear the reported vulnerabilities in the previous versions and require Go 1.26. No changes to the middleware's API or behavior. The root module and `middleware/echo` are unchanged (ZEN-2220).
+
 ## [middleware/gin 1.1.2] - 2026-11-21
 
 ### Changed
