@@ -8,7 +8,8 @@ The format follows Keep a Changelog and Semantic Versioning.
 
 ### Changed
 
-- `middleware/gin` now requires Go 1.26.11 or newer (was 1.25.12). The indirect `golang.org/x` modules moved to `crypto` v0.59.0, `net` v0.63.0, `sys` v0.50.0 and `text` v0.44.0, which clear the reported vulnerabilities in the previous versions and require Go 1.26. No changes to the middleware's API or behavior. The root module and `middleware/echo` are unchanged (ZEN-2220).
+- `middleware/gin` now requires Go 1.26.11 or newer (was 1.25.12). The indirect `golang.org/x` modules moved to `crypto` v0.59.0, `net` v0.63.0, `sys` v0.50.0 and `text` v0.44.0, which clear the reported vulnerabilities in the previous versions and require Go 1.26. No changes to the middleware's API or behavior. The root module is unchanged (ZEN-2220).
+- `middleware/echo` now requires Go 1.26.11 or newer (was 1.25.12). `github.com/labstack/echo/v4` moved from v4.12.0 to v4.16.5, which requires Go 1.26, and the indirect `golang.org/x` modules moved to the same versions as `middleware/gin`. No changes to the middleware's API or behavior. The root module still supports Go 1.25 (ZEN-2219).
 
 ## [middleware/gin 1.1.2] - 2026-11-21
 
