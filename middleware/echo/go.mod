@@ -3,7 +3,7 @@ module github.com/zenmanage/zenmanage-go/middleware/echo
 go 1.26.11
 
 require (
-	github.com/labstack/echo/v4 v4.16.5
+	github.com/labstack/echo/v4 v4.16.6
 	github.com/zenmanage/zenmanage-go v1.1.1
 )
 
